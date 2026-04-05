@@ -614,66 +614,54 @@ async function* streamModelResponse(
     chain?: ChatLunaChain,
     signal?: AbortSignal
 ): AsyncGenerator<StreamedParsedResponseChunk> {
-    for (let retryCount = 0; retryCount < 2; retryCount++) {
-        if (signal?.aborted) return
-        let emittedAny = false
+    if (signal?.aborted) return
 
-        try {
-            const lastMessage =
-                completionMessages[completionMessages.length - 1]
-            const historyMessages = completionMessages.slice(0, -1)
+    try {
+        const lastMessage =
+            completionMessages[completionMessages.length - 1]
+        const historyMessages = completionMessages.slice(0, -1)
 
-            const systemMessage =
-                chain != null ? historyMessages.shift() : undefined
+        const systemMessage =
+            chain != null ? historyMessages.shift() : undefined
 
-            if (chain) {
-                for await (const responseChunk of streamAgentResponseContents(
-                    chain,
+        if (chain) {
+            for await (const responseChunk of streamAgentResponseContents(
+                chain,
+                session,
+                model,
+                presetName,
+                systemMessage,
+                historyMessages,
+                lastMessage,
+                signal
+            )) {
+                yield await parseResponseContent(
+                    ctx,
                     session,
-                    model,
-                    presetName,
-                    systemMessage,
-                    historyMessages,
-                    lastMessage,
-                    signal
-                )) {
-                    emittedAny = true
-
-                    yield await parseResponseContent(
-                        ctx,
-                        session,
-                        config,
-                        responseChunk
-                    )
-                }
-
-                return
+                    config,
+                    responseChunk
+                )
             }
 
-            const responseMessage = await model.invoke(
-                completionMessages,
-                createStreamConfig(session, model, presetName, signal)
-            )
-            const responseContent = getMessageContent(responseMessage.content)
-            if (responseContent.trim().length < 1) {
-                return
-            }
-
-            logger.debug(`model response:\n${responseContent}`)
-            emittedAny = true
-
-            yield await parseResponseContent(ctx, session, config, {
-                responseMessage,
-                responseContent,
-                isIntermediate: false
-            })
             return
-        } catch (e) {
-            if (signal?.aborted) return
-            logger.error('model requests failed', e)
-            if (emittedAny || retryCount === 1) return
-            await sleep(3000)
         }
+
+        const responseMessage = await model.invoke(
+            completionMessages,
+            createStreamConfig(session, model, presetName, signal)
+        )
+        const responseContent = getMessageContent(responseMessage.content)
+
+        logger.debug(`model response:\n${responseContent}`)
+
+        yield await parseResponseContent(ctx, session, config, {
+            responseMessage,
+            responseContent,
+            isIntermediate: false
+        })
+    } catch (e) {
+        if (signal?.aborted) return
+        logger.error('model requests failed', e)
     }
 }
 
@@ -982,12 +970,15 @@ export async function apply(ctx: Context, config: Config) {
             )) {
                 latestStatus = chunk.parsedResponse.status ?? latestStatus
 
+                const canSend = chunk.parsedResponse.elements.some(
+                    (elements) => elements.length > 0
+                )
                 const isEmptyReply =
-                    chunk.parsedResponse.elements.length < 1 &&
+                    !canSend &&
                     chunk.parsedResponse.rawMessage.trim().length < 1
                 if (isEmptyReply) {
                     hasEmptyReplies = true
-                } else {
+                } else if (canSend) {
                     hasNonEmptyReplies = true
                 }
 
@@ -1031,9 +1022,7 @@ export async function apply(ctx: Context, config: Config) {
                         nextReplyReasons,
                         wakeUpReplies
                     )
-                    return
                 }
-                service.mute(session, copyOfConfig.muteTime * 1000)
                 return
             }
 
