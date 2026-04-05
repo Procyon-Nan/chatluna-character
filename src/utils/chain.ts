@@ -192,7 +192,9 @@ export async function createChatLunaChain(
         embeddings: embeddingsRef.value
     })
     const extraRef = shallowRef<StructuredTool[]>([])
-    const mergedTools = computed(() => toolsRef.tools.value.concat(extraRef.value))
+    const mergedTools = computed(() =>
+        toolsRef.tools.value.concat(extraRef.value)
+    )
 
     const executorRef = createAgentExecutor({
         llm: llmRef,
@@ -228,9 +230,8 @@ export async function createChatLunaChain(
             const mask =
                 toolMask ??
                 (await ctx.chatluna.resolveToolMask({
-                    session,
-                    room: null,
-                    source: 'character'
+                    session
+                    // source: 'character'
                 }))
 
             toolsRef.update(session, copyOfMessages, mask)
