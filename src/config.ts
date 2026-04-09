@@ -95,7 +95,7 @@ const commonModelConfig = Schema.object({
     maxTokens: Schema.number()
         .default(20000)
         .min(1024)
-        .max(20000)
+        .max(1000000)
         .description('使用聊天的最大 token 数'),
     enableMessageId: Schema.boolean()
         .description('向模型暴露平台消息 ID，以允许发送引用消息。')
