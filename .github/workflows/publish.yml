@@ -113,6 +113,7 @@ jobs:
               run: npx yakumo publish --registry https://registry.npmjs.org --debug
               env:
                   NPM_CONFIG_PROVENANCE: true
+                  NODE_AUTH_TOKEN: ${{secrets.npm_token}}
 
             - name: Save Version Cache
               if: steps.version.outputs.changed == 'true' && success()
