@@ -73,6 +73,33 @@ jobs:
                   echo 'changed=true' >> $GITHUB_OUTPUT
                   echo "Version changed: $previous -> $current"
 
+            - id: cache
+              name: Yarn Cache Dir
+              if: steps.version.outputs.changed == 'true'
+              shell: bash
+              run: |
+                  echo "value=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+
+            - id: lockfile
+              name: Restore Lockfile
+              if: steps.version.outputs.changed == 'true'
+              uses: actions/cache/restore@v4
+              with:
+                  path: yarn.lock
+                  key: yarn-lock-node-20-${{ hashFiles('package.json', '.yarnrc.yml') }}
+                  restore-keys: |
+                      yarn-lock-node-20-
+
+            - id: yarn-cache
+              name: Restore Cache
+              if: steps.version.outputs.changed == 'true'
+              uses: actions/cache/restore@v4
+              with:
+                  path: ${{ steps.cache.outputs.value }}
+                  key: yarn-cache-node-20-${{ hashFiles('package.json', '.yarnrc.yml') }}
+                  restore-keys: |
+                      yarn-cache-node-20-
+
             - name: Install
               if: steps.version.outputs.changed == 'true'
               run: yarn --no-immutable
@@ -94,3 +121,17 @@ jobs:
               with:
                   path: .github/.cache/publish-version
                   key: publish-version-${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}
+
+            - name: Save Lockfile
+              if: steps.version.outputs.changed == 'true' && success() && steps.lockfile.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
+              with:
+                  path: yarn.lock
+                  key: yarn-lock-node-20-${{ hashFiles('package.json', '.yarnrc.yml') }}
+
+            - name: Save Cache
+              if: steps.version.outputs.changed == 'true' && success() && steps.yarn-cache.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
+              with:
+                  path: ${{ steps.cache.outputs.value }}
+                  key: yarn-cache-node-20-${{ hashFiles('package.json', '.yarnrc.yml') }}
