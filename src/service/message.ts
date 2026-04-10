@@ -1,4 +1,4 @@
-import { Context, h, Logger, Service, Session, Time } from 'koishi'
+import { Context, h, Logger, Service, Session } from 'koishi'
 import { createLogger } from 'koishi-plugin-chatluna/utils/logger'
 import { ObjectLock } from 'koishi-plugin-chatluna/utils/lock'
 import { Config } from '..'
@@ -690,7 +690,6 @@ export class MessageCollector extends Service {
         }
 
         const triggerReason = await this._addMessage(session, message, {
-            filterExpiredMessages: true,
             processImages: config
         })
 
@@ -857,7 +856,6 @@ export class MessageCollector extends Service {
         session: Session,
         message: Message,
         options?: {
-            filterExpiredMessages?: boolean
             processImages?: Config
         }
     ): Promise<string | undefined> {
@@ -882,16 +880,6 @@ export class MessageCollector extends Service {
 
             while (groupArray.length > maxMessageSize) {
                 groupArray.shift()
-            }
-
-            if (options?.filterExpiredMessages) {
-                const now = Date.now()
-                groupArray = groupArray.filter((msg) => {
-                    return (
-                        msg.timestamp == null ||
-                        msg.timestamp >= now - Time.hour
-                    )
-                })
             }
 
             if (options?.processImages) {
