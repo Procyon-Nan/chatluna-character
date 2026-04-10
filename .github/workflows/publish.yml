@@ -75,7 +75,7 @@ jobs:
 
             - name: Install
               if: steps.version.outputs.changed == 'true'
-              run: yarn
+              run: yarn --no-immutable
 
             - name: Build
               if: steps.version.outputs.changed == 'true'
