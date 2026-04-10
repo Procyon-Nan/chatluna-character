@@ -31,11 +31,8 @@ async function main() {
 
 export default async function run(exe, ...args) {
     return new Promise((resolve, reject) => {
-        const env = Object.create(process.env)
         const child = exec([exe, ...args].join(' '), {
-            env: {
-                ...env
-            }
+            env: process.env
         })
         child.stdout.setEncoding('utf8')
         child.stderr.setEncoding('utf8')
