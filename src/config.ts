@@ -48,6 +48,10 @@ export interface Config extends ChatLunaPlugin.Config {
 
     toolCalling: boolean
     experimentalToolCallReply: boolean
+    toolCallReplyThinkTag: boolean
+    toolCallReplyStatusTag: boolean
+    toolCallReplyNextReply: boolean
+    toolCallReplyWakeUpReply: boolean
     isForceMute: boolean
     sendStickerProbability: number
     image: boolean
@@ -109,8 +113,8 @@ const commonModelConfig = Schema.object({
         .default(true)
         .description(
             '是否在缺失历史消息时自动从支持的 API ' +
-                '（如 OneBot 及所有支持 getMessageList 的适配器）' +
-                '获取历史消息，使重启插件时可以获取刚刚的上下文'
+            '（如 OneBot 及所有支持 getMessageList 的适配器）' +
+            '获取历史消息，使重启插件时可以获取刚刚的上下文'
         )
 })
     .description('上下文')
@@ -150,39 +154,72 @@ const commonMuteConfig = Schema.object({
     .description('闭嘴')
     .collapse()
 
-const commonModelFeatureConfig = Schema.object({
-    toolCalling: Schema.boolean()
+const commonToolCallReplyConfig = Schema.object({
+    experimentalToolCallReply: Schema.boolean()
+        .default(false)
         .description(
-            '是否启用工具调用功能（可在[**这里**]' +
-                '(https://cooksleep.github.io/newapi-special-test)' +
-                '测试你的 API 工具调用等能力是否正常）'
-        )
-        .default(true),
-    image: Schema.boolean()
+            '是否启用实验性“工具调用回复”功能（需同时开启“工具调用”，让模型通过工具调用完成状态更新、回复消息等原本依赖 XML 块的操作，在使用前请先查看文档）'
+        ),
+    toolCallReplyThinkTag: Schema.boolean()
+        .default(true)
         .description(
-            '是否允许输入图片（注意表情包也会输入，目前仅支持原生多模态的模型）'
-        )
-        .default(false),
-    imageInputMaxCount: Schema.number()
-        .default(9)
-        .min(1)
-        .max(15)
-        .description('最大的输入图片数量'),
-    imageInputMaxSize: Schema.number()
-        .default(20)
-        .min(1)
-        .max(100)
-        .description('最大的输入图片大小（MB）'),
-    multimodalFileInputMaxSize: Schema.number()
-        .default(20)
-        .min(1)
-        .max(100)
+            '是否启用 `<think>` 标签（使模型进行角色扮演式“思考”，展示角色的心路历程，主要起到观赏性作用）'
+        ),
+    toolCallReplyStatusTag: Schema.boolean()
+        .default(true)
         .description(
-            '最大的多模态文件输入大小（MB）：过大可能造成服务器卡顿、回复延迟'
+            '是否启用 `<status>` 标签（使模型可以临时性记忆更多上下文、维护自身状态信息，可以有效提升角色扮演效果）'
+        ),
+    toolCallReplyNextReply: Schema.boolean()
+        .default(true)
+        .description(
+            '是否启用 `next_reply`（使模型可以设置下一次短期主动触发条件）'
+        ),
+    toolCallReplyWakeUpReply: Schema.boolean()
+        .default(true)
+        .description(
+            '是否启用 `wake_up_reply`（使模型可以设置未来某个时间点的主动触发条件）'
         )
 })
-    .description('工具与多模态')
+    .description('工具调用回复')
     .collapse()
+
+const commonModelFeatureConfig = Schema.intersect([
+    Schema.object({
+        toolCalling: Schema.boolean()
+            .description(
+                '是否启用工具调用功能（可在[**这里**]' +
+                '(https://cooksleep.github.io/newapi-special-test)' +
+                '测试你的 API 工具调用等能力是否正常）'
+            )
+            .default(true),
+        image: Schema.boolean()
+            .description(
+                '是否允许输入图片（注意表情包也会输入，目前仅支持原生多模态的模型）'
+            )
+            .default(false),
+        imageInputMaxCount: Schema.number()
+            .default(9)
+            .min(1)
+            .max(15)
+            .description('最大的输入图片数量'),
+        imageInputMaxSize: Schema.number()
+            .default(20)
+            .min(1)
+            .max(100)
+            .description('最大的输入图片大小（MB）'),
+        multimodalFileInputMaxSize: Schema.number()
+            .default(20)
+            .min(1)
+            .max(100)
+            .description(
+                '最大的多模态文件输入大小（MB）：过大可能造成服务器卡顿、回复延迟'
+            )
+    })
+        .description('工具与多模态')
+        .collapse(),
+    commonToolCallReplyConfig
+])
 
 const privateIdleConfig = Schema.object({
     enableLongWaitTrigger: Schema.boolean()
@@ -551,12 +588,7 @@ export const Config = Schema.intersect([
         ).description('启用此插件时，不禁用 ChatLuna 主功能的私聊用户 ID 列表'),
         whiteListDisableChatLuna: Schema.array(Schema.string()).description(
             '启用此插件时，不禁用 ChatLuna 主功能的群聊 ID 列表'
-        ),
-        experimentalToolCallReply: Schema.boolean()
-            .default(false)
-            .description(
-                '是否启用实验性“工具调用回复”功能（需同时开启“工具调用”，让模型通过工具调用完成状态更新、回复消息等原本依赖 XML 块的操作）'
-            )
+        )
     })
         .description('基础配置')
         .collapse(),
@@ -604,6 +636,7 @@ type LegacyConfig = Config & {
     imageInputMaxSize?: number
     multimodalFileInputMaxSize?: number
     toolCalling?: boolean
+    experimentalToolCallReply?: boolean
     isForceMute?: boolean
     coolDownTime?: number
     muteTime?: number
@@ -628,22 +661,23 @@ type LegacyConfig = Config & {
 
 type CommonMigration = {
     key:
-        | 'maxMessages'
-        | 'maxTokens'
-        | 'image'
-        | 'imageInputMaxCount'
-        | 'imageInputMaxSize'
-        | 'multimodalFileInputMaxSize'
-        | 'toolCalling'
-        | 'isForceMute'
-        | 'coolDownTime'
-        | 'splitVoice'
-        | 'isNickname'
-        | 'isNickNameWithContent'
-        | 'statusPersistence'
-        | 'historyPull'
-        | 'modelCompletionCount'
-        | 'enableMessageId'
+    | 'maxMessages'
+    | 'maxTokens'
+    | 'image'
+    | 'imageInputMaxCount'
+    | 'imageInputMaxSize'
+    | 'multimodalFileInputMaxSize'
+    | 'toolCalling'
+    | 'experimentalToolCallReply'
+    | 'isForceMute'
+    | 'coolDownTime'
+    | 'splitVoice'
+    | 'isNickname'
+    | 'isNickNameWithContent'
+    | 'statusPersistence'
+    | 'historyPull'
+    | 'modelCompletionCount'
+    | 'enableMessageId'
     privateDefault: number | boolean
     groupDefault: number | boolean
     onlyFalse?: boolean
@@ -651,12 +685,12 @@ type CommonMigration = {
 
 type IdleMigration = {
     key:
-        | 'enableLongWaitTrigger'
-        | 'idleTriggerIntervalMinutes'
-        | 'idleTriggerRetryStyle'
-        | 'idleTriggerMaxIntervalMinutes'
-        | 'idleTriggerFixedMaxRetries'
-        | 'enableIdleTriggerJitter'
+    | 'enableLongWaitTrigger'
+    | 'idleTriggerIntervalMinutes'
+    | 'idleTriggerRetryStyle'
+    | 'idleTriggerMaxIntervalMinutes'
+    | 'idleTriggerFixedMaxRetries'
+    | 'enableIdleTriggerJitter'
     privateDefault: number | boolean | 'exponential' | 'fixed'
     groupDefault: number | boolean | 'exponential' | 'fixed'
     onlyFalse?: boolean
@@ -664,9 +698,9 @@ type IdleMigration = {
 
 type GroupMigration = {
     key:
-        | 'messageActivityScoreLowerLimit'
-        | 'messageActivityScoreUpperLimit'
-        | 'isAt'
+    | 'messageActivityScoreLowerLimit'
+    | 'messageActivityScoreUpperLimit'
+    | 'isAt'
     defaultValue: number | boolean
 }
 
@@ -689,6 +723,11 @@ const commonMigrations: CommonMigration[] = [
         privateDefault: true,
         groupDefault: true,
         onlyFalse: true
+    },
+    {
+        key: 'experimentalToolCallReply',
+        privateDefault: false,
+        groupDefault: false
     },
     {
         key: 'isForceMute',
@@ -764,6 +803,7 @@ const legacyKeys = [
     'imageInputMaxSize',
     'multimodalFileInputMaxSize',
     'toolCalling',
+    'experimentalToolCallReply',
     'isForceMute',
     'coolDownTime',
     'muteTime',
@@ -804,7 +844,6 @@ export function migrateConfig(config: Config): boolean {
         IdleMigration['key'],
         IdleValue
     >
-
     if (
         config.globalPrivateConfig.preset === 'CHARACTER' &&
         config.defaultPreset

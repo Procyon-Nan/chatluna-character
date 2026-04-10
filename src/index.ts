@@ -6,7 +6,7 @@ import { MessageCollector } from './service/message'
 import { TriggerStore } from './service/trigger'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
-import type {} from '@koishijs/plugin-console'
+import type { } from '@koishijs/plugin-console'
 
 export function apply(ctx: Context, config: Config) {
     const changed = migrateConfig(config)
@@ -126,6 +126,12 @@ export const usage = `
 ## chatluna-character
 
 请先阅读[**此文档**](https://chatluna.chat/ecosystem/other/character.html)了解使用方式。
+
+### 26.04.11
+
+“工具调用回复”功能的配置项已从“基础配置”下放至全局私聊／全局群聊／分私聊／分群聊配置中，并且支持分别调整 \`status\`、\`think\`、\`next_reply\`、\`wake_up_reply\` 字段是否启用。
+
+使用“工具调用回复”功能时，请尽可能使用模型官方（推荐的）API 格式（如：Gemini 使用 Gemini 适配器，Claude 及其他支持 Anthropic API 的模型使用 Claude 适配器），否则可能遇到无法正常完成回复的问题（尤其是 Minimax 等模型）。
 
 ### 26.04.05
 

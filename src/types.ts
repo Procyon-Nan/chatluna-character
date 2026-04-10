@@ -93,6 +93,11 @@ export interface GuildConfig {
     muteTime: number
     modelCompletionCount: number
     toolCalling: boolean
+    experimentalToolCallReply: boolean
+    toolCallReplyThinkTag: boolean
+    toolCallReplyStatusTag: boolean
+    toolCallReplyNextReply: boolean
+    toolCallReplyWakeUpReply: boolean
     historyPull: boolean
     statusPersistence: boolean
 }
