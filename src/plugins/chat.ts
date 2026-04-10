@@ -820,7 +820,12 @@ function renderReplyToolXml(
             }
         }
 
-        if (config.toolCallReplyNextReply) {
+        if (
+            config.toolCallReplyNextReply &&
+            (!config.enableFixedIntervalTrigger ||
+                config.messageInterval !== 0) &&
+            call.args.is_final !== false
+        ) {
             actions.push(...buildNextReplyToolTags(call.args.next_reply))
         }
 
