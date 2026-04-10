@@ -547,7 +547,13 @@ function createReplyTools(
         }, {
             name: 'character_reply',
             description:
-                'Send one or more in-character reply messages and required actions. All user-visible reply content must be sent through this tool. Use real newlines in all string fields, not the literal string `\\n`. Do not manually wrap content in XML tags inside any field. Fill the structured fields directly. Do not end the turn with plain text output outside this tool.',
+                'Send one or more in-character reply messages and required ' +
+                'actions. All user-visible reply content must be sent ' +
+                'through this tool. Use real newlines in all string ' +
+                'fields, not the literal string `\\n`. Do not manually ' +
+                'wrap content in XML tags inside any field. Fill the ' +
+                'structured fields directly. Do not end the turn with ' +
+                'plain text output outside this tool.',
             returnDirect: false,
             schema: {
                 type: 'object',
