@@ -1,0 +1,93 @@
+name: Publish
+
+on:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    id-token: write
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+        environment: publish
+
+        steps:
+            - name: Check out
+              uses: actions/checkout@v4
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  registry-url: https://registry.npmjs.org
+
+            - name: Set up Yarn
+              run: |
+                  corepack enable
+                  corepack prepare yarn@4.5.0 --activate
+
+            - id: pkg
+              name: Read Package Version
+              run: |
+                  echo "name=$(node -p \"require('./package.json').name\")" >> $GITHUB_OUTPUT
+                  echo "version=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
+
+            - id: version-cache
+              name: Restore Version Cache
+              uses: actions/cache/restore@v4
+              with:
+                  path: .github/.cache/publish-version
+                  key: publish-version-${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}
+                  restore-keys: |
+                      publish-version-${{ steps.pkg.outputs.name }}-
+
+            - id: version
+              name: Check Version Change
+              shell: bash
+              run: |
+                  mkdir -p .github/.cache/publish-version
+
+                  current='${{ steps.pkg.outputs.version }}'
+                  previous=''
+
+                  if [ -f .github/.cache/publish-version/version.txt ]; then
+                    previous="$(cat .github/.cache/publish-version/version.txt)"
+                  fi
+
+                  echo "previous=$previous" >> $GITHUB_OUTPUT
+
+                  if [ "$previous" = "$current" ]; then
+                    echo 'changed=false' >> $GITHUB_OUTPUT
+                    echo 'package.json version unchanged, skip publish.'
+                    exit 0
+                  fi
+
+                  printf '%s' "$current" > .github/.cache/publish-version/version.txt
+                  echo 'changed=true' >> $GITHUB_OUTPUT
+                  echo "Version changed: $previous -> $current"
+
+            - name: Install
+              if: steps.version.outputs.changed == 'true'
+              run: yarn
+
+            - name: Build
+              if: steps.version.outputs.changed == 'true'
+              run: yarn build
+
+            - name: Publish To npm
+              if: steps.version.outputs.changed == 'true'
+              run: yarn yakumo publish --registry https://registry.npmjs.org
+              env:
+                  NPM_CONFIG_PROVENANCE: true
+                  YARN_NPM_CONFIG_PROVENANCE: true
+
+            - name: Save Version Cache
+              if: steps.version.outputs.changed == 'true' && success()
+              uses: actions/cache/save@v4
+              with:
+                  path: .github/.cache/publish-version
+                  key: publish-version-${{ steps.pkg.outputs.name }}-${{ steps.pkg.outputs.version }}
