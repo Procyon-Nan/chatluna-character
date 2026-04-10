@@ -735,7 +735,12 @@ function parseReplyTools(config: Config | GuildConfig | PrivateConfig, calls: Re
             }
         }
 
-        if (config.toolCallReplyNextReply && call.args.is_final !== false) {
+        if (
+            config.toolCallReplyNextReply &&
+            (!config.enableFixedIntervalTrigger ||
+                config.messageInterval !== 0) &&
+            call.args.is_final !== false
+        ) {
             nextReplyReasons.push(
                 ...extractNextReplyReasonsFromTool(call.args.next_reply)
             )
