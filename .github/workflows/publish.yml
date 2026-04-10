@@ -23,7 +23,6 @@ jobs:
               uses: actions/setup-node@v4
               with:
                   node-version: 20
-                  registry-url: https://registry.npmjs.org
 
             - name: Set up Yarn
               run: |
@@ -110,10 +109,14 @@ jobs:
 
             - name: Publish To npm
               if: steps.version.outputs.changed == 'true'
-              run: npx yakumo publish --registry https://registry.npmjs.org --debug
+              shell: bash
+              run: |
+                  printf 'registry=https://registry.npmjs.org/\n' > "$RUNNER_TEMP/.npmrc"
+                  export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc"
+                  npx yakumo publish --registry https://registry.npmjs.org --debug
               env:
                   NPM_CONFIG_PROVENANCE: true
-                  NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+                  NODE_AUTH_TOKEN: ''
 
             - name: Save Version Cache
               if: steps.version.outputs.changed == 'true' && success()
