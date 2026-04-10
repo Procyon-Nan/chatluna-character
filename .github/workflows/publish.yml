@@ -110,10 +110,9 @@ jobs:
 
             - name: Publish To npm
               if: steps.version.outputs.changed == 'true'
-              run: yarn yakumo publish --registry https://registry.npmjs.org
+              run: npx yakumo publish --registry https://registry.npmjs.org
               env:
                   NPM_CONFIG_PROVENANCE: true
-                  YARN_NPM_CONFIG_PROVENANCE: true
 
             - name: Save Version Cache
               if: steps.version.outputs.changed == 'true' && success()
