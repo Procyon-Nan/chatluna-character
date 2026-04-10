@@ -291,6 +291,10 @@ function buildNextReplyToolTags(value: unknown) {
     return tags
 }
 
+function renderToolText(value: string) {
+    return value.replaceAll('\\n', '\n')
+}
+
 function createReplyTools(
     ctx: Context,
     session: Session,
@@ -427,14 +431,6 @@ function createReplyTools(
             description:
                 'Whether this is the final reply of the current turn. Use false only for temporary progress updates when you still need more tools or more reasoning. Use true for the final reply of this turn.'
         },
-        status: {
-            type: 'string',
-            description: 'Updated status text.'
-        },
-        think: {
-            type: 'string',
-            description: 'The character\'s internal thoughts about the message.'
-        },
         messages: {
             type: 'array',
             description: 'List of messages to send. Each object in the array is one message. Use an empty array when no reply is needed.',
@@ -442,7 +438,10 @@ function createReplyTools(
                 ...message
             }
         },
-        wake_up_reply: {
+    }
+
+    if (config.toolCallReplyWakeUpReply) {
+        props['wake_up_reply'] = {
             type: 'array',
             description:
                 'Schedule future proactive triggers. Use this when you want to speak again at a specific later time, such as for a planned reminder or joke.',
@@ -465,7 +464,10 @@ function createReplyTools(
         }
     }
 
-    if (!config.enableFixedIntervalTrigger || config.messageInterval !== 0) {
+    if (
+        config.toolCallReplyNextReply &&
+        (!config.enableFixedIntervalTrigger || config.messageInterval !== 0)
+    ) {
         props['next_reply'] = {
             type: 'array',
             description:
@@ -513,6 +515,24 @@ function createReplyTools(
             }
         }
     }
+    const required = ['is_final', 'messages']
+
+    if (config.toolCallReplyStatusTag) {
+        props.status = {
+            type: 'string',
+            description:
+                'Updated status text. Do not include XML tags in this field.'
+        }
+        required.push('status')
+    }
+
+    if (config.toolCallReplyThinkTag) {
+        props.think = {
+            type: 'string',
+            description: 'The character\'s internal thoughts about the message.'
+        }
+        required.push('think')
+    }
 
     for (const field of ctx.chatluna_character.getReplyToolFields()) {
         if (field.isAvailable && !field.isAvailable(ctx, session, config)) {
@@ -547,12 +567,12 @@ function createReplyTools(
         }, {
             name: 'character_reply',
             description:
-                'Send one or more in-character reply messages and required actions. All user-visible reply content must be sent through this tool. Use real newlines in all string fields, not the literal string `\\n`. Do not manually wrap content in XML tags inside any field. Fill the structured fields directly. Do not end the turn with plain text output outside this tool.',
+                'Send one or more in-character reply messages and required actions. All user-visible reply content must be sent through this tool. Use the literal string `\\n` for line breaks in all string fields. Do not use real newline characters. Do not manually wrap content in XML tags inside any field. Fill the structured fields directly. Do not end the turn with plain text output outside this tool.',
             returnDirect: false,
             schema: {
                 type: 'object',
                 properties: props,
-                required: ['is_final', 'status', 'think', 'messages']
+                required
             }
         })
     ]
@@ -568,7 +588,10 @@ function formatReplyUserPrompt(session: Session, config: Config) {
         'All user-visible reply content must be sent through `character_reply`. Do not end the turn with plain text output outside this tool.'
     ]
 
-    if (!config.enableFixedIntervalTrigger || config.messageInterval !== 0) {
+    if (
+        config.toolCallReplyNextReply &&
+        (!config.enableFixedIntervalTrigger || config.messageInterval !== 0)
+    ) {
         tips.push('You should also actively decide whether this turn needs `next_reply`.')
     }
 
@@ -590,7 +613,7 @@ function buildXmlMessage(args: Record<string, unknown>) {
             .replaceAll('>', '&gt;')
 
         if (!attr) {
-            return text
+            return renderToolText(text)
         }
 
         return text.replaceAll('"', '&quot;')
@@ -689,7 +712,7 @@ function buildXmlMessage(args: Record<string, unknown>) {
     return `<message${quote}>${escape(args.text)}</message>`
 }
 
-function parseReplyTools(calls: ReplyToolCall[]) {
+function parseReplyTools(config: Config | GuildConfig | PrivateConfig, calls: ReplyToolCall[]) {
     const messages: string[] = []
     const nextReplyReasons: string[] = []
     const wakeUpReplies: { time: string; reason: string }[] = []
@@ -700,7 +723,7 @@ function parseReplyTools(calls: ReplyToolCall[]) {
             continue
         }
 
-        if (typeof call.args.status === 'string') {
+        if (config.toolCallReplyStatusTag && typeof call.args.status === 'string') {
             status = call.args.status
         }
 
@@ -712,13 +735,17 @@ function parseReplyTools(calls: ReplyToolCall[]) {
             }
         }
 
-        if (call.args.is_final !== false) {
+        if (config.toolCallReplyNextReply && call.args.is_final !== false) {
             nextReplyReasons.push(
                 ...extractNextReplyReasonsFromTool(call.args.next_reply)
             )
         }
 
-        if (call.args.is_final === false || !Array.isArray(call.args.wake_up_reply)) {
+        if (
+            !config.toolCallReplyWakeUpReply ||
+            call.args.is_final === false ||
+            !Array.isArray(call.args.wake_up_reply)
+        ) {
             continue
         }
 
@@ -767,11 +794,17 @@ function renderReplyToolXml(
         }
 
         if (typeof call.args.status === 'string') {
-            blocks.push(`<status>\n${call.args.status}\n</status>`)
+            if (config.toolCallReplyStatusTag) {
+                blocks.push(`<status>\n${renderToolText(call.args.status)}\n</status>`)
+            }
         }
 
-        if (typeof call.args.think === 'string' && call.args.think.trim()) {
-            blocks.push(`<think>\n${call.args.think.trim()}\n</think>`)
+        if (
+            config.toolCallReplyThinkTag &&
+            typeof call.args.think === 'string' &&
+            call.args.think.trim()
+        ) {
+            blocks.push(`<think>\n${renderToolText(call.args.think.trim())}\n</think>`)
         }
 
         if (Array.isArray(call.args.messages)) {
@@ -782,9 +815,11 @@ function renderReplyToolXml(
             }
         }
 
-        actions.push(...buildNextReplyToolTags(call.args.next_reply))
+        if (config.toolCallReplyNextReply) {
+            actions.push(...buildNextReplyToolTags(call.args.next_reply))
+        }
 
-        if (Array.isArray(call.args.wake_up_reply)) {
+        if (config.toolCallReplyWakeUpReply && Array.isArray(call.args.wake_up_reply)) {
             for (const item of call.args.wake_up_reply) {
                 if (!item || typeof item !== 'object' || Array.isArray(item)) {
                     continue
@@ -873,7 +908,7 @@ async function parseResponseContent(
     const { responseMessage, responseContent, isIntermediate } = chunk
     const toolState =
         config.experimentalToolCallReply && chunk.toolCalls?.length > 0
-            ? parseReplyTools(chunk.toolCalls)
+            ? parseReplyTools(config, chunk.toolCalls)
             : undefined
     const renderedContent =
         config.experimentalToolCallReply && chunk.toolCalls?.length > 0
@@ -1333,8 +1368,28 @@ async function prepareMessages(
     const userPrompt = formatReplyUserPrompt(session, config)
     const humanMessage = new HumanMessage(
         (await currentPreset.input.format(
+                {
+                    history_new: historyNewMessages
+                        .join('\n\n')
+                        .replaceAll('{', '{{')
+                        .replaceAll('}', '}}'),
+                    history_last: historyLast,
+                    time: formatTimestamp(new Date()),
+                    stickers: '',
+                    status: temp.status ?? currentPreset.status ?? '',
+                    trigger_reason: triggerReasonText,
+                    prompt: session.content,
+                    built
+                },
+                session.app.chatluna.promptRenderer,
+                {
+                    session
+                }
+            )) + (userPrompt.length > 0 ? `\n\n${userPrompt}` : '')
+    )
+    const prompt = await currentPreset.input.format(
             {
-                history_new: historyNewMessages
+                history_new: recentMessages
                     .join('\n\n')
                     .replaceAll('{', '{{')
                     .replaceAll('}', '}}'),
@@ -1350,26 +1405,6 @@ async function prepareMessages(
             {
                 session
             }
-        )) + (userPrompt.length > 0 ? `\n\n${userPrompt}` : '')
-    )
-    const prompt = await currentPreset.input.format(
-        {
-            history_new: recentMessages
-                .join('\n\n')
-                .replaceAll('{', '{{')
-                .replaceAll('}', '}}'),
-            history_last: historyLast,
-            time: formatTimestamp(new Date()),
-            stickers: '',
-            status: temp.status ?? currentPreset.status ?? '',
-            trigger_reason: triggerReasonText,
-            prompt: session.content,
-            built
-        },
-        session.app.chatluna.promptRenderer,
-        {
-            session
-        }
     )
     const persistedHumanMessage = new HumanMessage(
         prompt + (userPrompt.length > 0 ? `\n\n${userPrompt}` : '')
@@ -1741,33 +1776,43 @@ export async function apply(ctx: Context, config: Config) {
     const preset = service.preset
     logger = service.logger
 
-    if (config.experimentalToolCallReply) {
+    if (config.globalPrivateConfig.experimentalToolCallReply) {
         if (!config.globalPrivateConfig.toolCalling) {
             throw new Error(
-                'experimentalToolCallReply 依赖 toolCalling，globalPrivateConfig.toolCalling 不能关闭。'
+                'globalPrivateConfig.experimentalToolCallReply 依赖 toolCalling，globalPrivateConfig.toolCalling 不能关闭。'
             )
         }
+    }
 
+    if (config.globalGroupConfig.experimentalToolCallReply) {
         if (!config.globalGroupConfig.toolCalling) {
             throw new Error(
-                'experimentalToolCallReply 依赖 toolCalling，globalGroupConfig.toolCalling 不能关闭。'
+                'globalGroupConfig.experimentalToolCallReply 依赖 toolCalling，globalGroupConfig.toolCalling 不能关闭。'
             )
         }
+    }
 
-        for (const [id, cfg] of Object.entries(config.privateConfigs)) {
-            if (!cfg.toolCalling) {
-                throw new Error(
-                    `experimentalToolCallReply 依赖 toolCalling，privateConfigs.${id}.toolCalling 不能关闭。`
-                )
-            }
+    for (const [id, cfg] of Object.entries(config.privateConfigs)) {
+        if (!cfg.experimentalToolCallReply) {
+            continue
         }
 
-        for (const [id, cfg] of Object.entries(config.configs)) {
-            if (!cfg.toolCalling) {
-                throw new Error(
-                    `experimentalToolCallReply 依赖 toolCalling，configs.${id}.toolCalling 不能关闭。`
-                )
-            }
+        if (!cfg.toolCalling) {
+            throw new Error(
+                `privateConfigs.${id}.experimentalToolCallReply 依赖 toolCalling，privateConfigs.${id}.toolCalling 不能关闭。`
+            )
+        }
+    }
+
+    for (const [id, cfg] of Object.entries(config.configs)) {
+        if (!cfg.experimentalToolCallReply) {
+            continue
+        }
+
+        if (!cfg.toolCalling) {
+            throw new Error(
+                `configs.${id}.experimentalToolCallReply 依赖 toolCalling，configs.${id}.toolCalling 不能关闭。`
+            )
         }
     }
 
@@ -1967,7 +2012,7 @@ export async function apply(ctx: Context, config: Config) {
                     }
 
                     if (copyOfConfig.experimentalToolCallReply && chunk.toolCalls) {
-                        const toolState = parseReplyTools(chunk.toolCalls)
+                        const toolState = parseReplyTools(copyOfConfig, chunk.toolCalls)
                         nextReplyReasons.push(...toolState.nextReplyReasons)
                         wakeUpReplies.push(...toolState.wakeUpReplies)
                     } else {
