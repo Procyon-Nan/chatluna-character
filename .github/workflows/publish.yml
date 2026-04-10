@@ -22,7 +22,8 @@ jobs:
             - name: Set up Node
               uses: actions/setup-node@v4
               with:
-                  node-version: 20
+                  node-version: 24
+                  registry-url: https://registry.npmjs.org
 
             - name: Set up Yarn
               run: |
@@ -85,9 +86,9 @@ jobs:
               uses: actions/cache/restore@v4
               with:
                   path: yarn.lock
-                  key: yarn-lock-node-20-${{ hashFiles('package.json', '.yarnrc.yml') }}
+                  key: yarn-lock-node-24-${{ hashFiles('package.json', '.yarnrc.yml') }}
                   restore-keys: |
-                      yarn-lock-node-20-
+                      yarn-lock-node-24-
 
             - id: yarn-cache
               name: Restore Cache
@@ -95,9 +96,9 @@ jobs:
               uses: actions/cache/restore@v4
               with:
                   path: ${{ steps.cache.outputs.value }}
-                  key: yarn-cache-node-20-${{ hashFiles('package.json', '.yarnrc.yml') }}
+                  key: yarn-cache-node-24-${{ hashFiles('package.json', '.yarnrc.yml') }}
                   restore-keys: |
-                      yarn-cache-node-20-
+                      yarn-cache-node-24-
 
             - name: Install
               if: steps.version.outputs.changed == 'true'
@@ -109,14 +110,7 @@ jobs:
 
             - name: Publish To npm
               if: steps.version.outputs.changed == 'true'
-              shell: bash
-              run: |
-                  printf 'registry=https://registry.npmjs.org/\n' > "$RUNNER_TEMP/.npmrc"
-                  export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc"
-                  npx yakumo publish --registry https://registry.npmjs.org --debug
-              env:
-                  NPM_CONFIG_PROVENANCE: true
-                  NODE_AUTH_TOKEN: ''
+              run: npx yakumo publish --registry https://registry.npmjs.org --debug
 
             - name: Save Version Cache
               if: steps.version.outputs.changed == 'true' && success()
@@ -130,11 +124,11 @@ jobs:
               uses: actions/cache/save@v4
               with:
                   path: yarn.lock
-                  key: yarn-lock-node-20-${{ hashFiles('package.json', '.yarnrc.yml') }}
+                  key: yarn-lock-node-24-${{ hashFiles('package.json', '.yarnrc.yml') }}
 
             - name: Save Cache
               if: steps.version.outputs.changed == 'true' && success() && steps.yarn-cache.outputs.cache-hit != 'true'
               uses: actions/cache/save@v4
               with:
                   path: ${{ steps.cache.outputs.value }}
-                  key: yarn-cache-node-20-${{ hashFiles('package.json', '.yarnrc.yml') }}
+                  key: yarn-cache-node-24-${{ hashFiles('package.json', '.yarnrc.yml') }}
