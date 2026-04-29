@@ -48,6 +48,7 @@ import { ComputedRef } from 'koishi-plugin-chatluna'
 let logger: Logger
 
 type ParsedResponse = Awaited<ReturnType<typeof parseResponse>>
+type RuntimeConfig = Config & (GuildConfig | PrivateConfig)
 type StreamedParsedResponseChunk = StreamedModelResponseChunk<ParsedResponse>
 
 interface StreamedResponseContentChunk {
@@ -578,7 +579,7 @@ function createReplyTools(
     ]
 }
 
-function formatReplyUserPrompt(session: Session, config: Config) {
+function formatReplyUserPrompt(session: Session, config: RuntimeConfig) {
     if (!config.experimentalToolCallReply || !config.toolCalling) {
         return ''
     }
@@ -911,7 +912,7 @@ function stripInternalTriggerTags(content: string) {
 async function parseResponseContent(
     ctx: Context,
     session: Session,
-    config: Config,
+    config: RuntimeConfig,
     chunk: StreamedResponseContentChunk
 ): Promise<StreamedParsedResponseChunk> {
     let parsedResponse: ParsedResponse
@@ -1033,7 +1034,7 @@ async function* streamAgentResponseContents(
     chain: ChatLunaChain,
     session: Session,
     model: ChatLunaChatModel,
-    config: Config,
+    config: RuntimeConfig,
     presetName: string,
     systemMessage: BaseMessage | undefined,
     historyMessages: BaseMessage[],
@@ -1115,7 +1116,7 @@ async function registerResponseTriggers(
     ctx: Context,
     session: Session,
     key: string,
-    config: Config,
+    config: RuntimeConfig,
     nextReplyReasons: string[],
     wakeUpReplies: ReturnType<typeof extractWakeUpReplies>
 ) {
@@ -1263,18 +1264,25 @@ async function getConfigAndPresetForGuild(
     presetPool: Record<string, PresetTemplate>,
     key: string,
     preset: Preset
-): Promise<{ copyOfConfig: Config; currentPreset: PresetTemplate }> {
+): Promise<{ copyOfConfig: RuntimeConfig; currentPreset: PresetTemplate }> {
     const globalConfig = isDirect
         ? config.globalPrivateConfig
         : config.globalGroupConfig
     const currentGuildConfig = isDirect
         ? config.privateConfigs[guildId]
         : config.configs[guildId]
-    let copyOfConfig = Object.assign({}, config, globalConfig)
+    let copyOfConfig = Object.assign({}, config, globalConfig, {
+        experimentalToolCallReply:
+            globalConfig.experimentalToolCallReply === true
+    }) as RuntimeConfig
     let currentPreset = isDirect ? globalPrivatePreset : globalGroupPreset
 
     if (currentGuildConfig) {
-        copyOfConfig = Object.assign({}, copyOfConfig, currentGuildConfig)
+        copyOfConfig = Object.assign(
+            {},
+            copyOfConfig,
+            currentGuildConfig
+        ) as RuntimeConfig
         currentPreset =
             presetPool[key] ??
             (await (async () => {
@@ -1296,7 +1304,7 @@ async function getConfigAndPresetForGuild(
 async function prepareMessages(
     ctx: Context,
     messages: Message[],
-    config: Config,
+    config: RuntimeConfig,
     session: Session,
     model: ChatLunaChatModel,
     currentPreset: PresetTemplate,
@@ -1526,7 +1534,7 @@ async function* streamModelResponse(
     session: Session,
     model: ChatLunaChatModel,
     completionMessages: BaseMessage[],
-    config: Config,
+    config: RuntimeConfig,
     presetName: string,
     chain?: ChatLunaChain,
     signal?: AbortSignal,
@@ -1648,7 +1656,7 @@ async function handleMessageSending(
     elements: h[],
     text: string,
     parsedResponse: Awaited<ReturnType<typeof parseResponse>>,
-    config: Config,
+    config: RuntimeConfig,
     ctx: Context,
     maxTime: number,
     emoticonStatement: string,
@@ -1727,7 +1735,7 @@ async function handleMessageSending(
 
 async function handleParsedResponseChunk(
     session: Session,
-    config: Config,
+    config: RuntimeConfig,
     ctx: Context,
     parsedResponse: ParsedResponse
 ): Promise<{

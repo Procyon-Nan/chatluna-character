@@ -47,7 +47,6 @@ export interface Config extends ChatLunaPlugin.Config {
     markdownRender: boolean
 
     toolCalling: boolean
-    experimentalToolCallReply: boolean
     toolCallReplyThinkTag: boolean
     toolCallReplyStatusTag: boolean
     toolCallReplyNextReply: boolean
@@ -668,7 +667,6 @@ type CommonMigration = {
     | 'imageInputMaxSize'
     | 'multimodalFileInputMaxSize'
     | 'toolCalling'
-    | 'experimentalToolCallReply'
     | 'isForceMute'
     | 'coolDownTime'
     | 'splitVoice'
@@ -723,11 +721,6 @@ const commonMigrations: CommonMigration[] = [
         privateDefault: true,
         groupDefault: true,
         onlyFalse: true
-    },
-    {
-        key: 'experimentalToolCallReply',
-        privateDefault: false,
-        groupDefault: false
     },
     {
         key: 'isForceMute',
