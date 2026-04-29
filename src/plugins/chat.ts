@@ -1271,10 +1271,7 @@ async function getConfigAndPresetForGuild(
     const currentGuildConfig = isDirect
         ? config.privateConfigs[guildId]
         : config.configs[guildId]
-    let copyOfConfig = Object.assign({}, config, globalConfig, {
-        experimentalToolCallReply:
-            globalConfig.experimentalToolCallReply === true
-    }) as RuntimeConfig
+    let copyOfConfig = Object.assign({}, config, globalConfig) as RuntimeConfig
     let currentPreset = isDirect ? globalPrivatePreset : globalGroupPreset
 
     if (currentGuildConfig) {
