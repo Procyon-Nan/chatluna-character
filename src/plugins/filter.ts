@@ -559,10 +559,7 @@ async function processSchedulerTickForGuild(
             completedAt
         )
         info.pendingWakeUpReplies = (info.pendingWakeUpReplies ?? []).filter(
-            (pending) =>
-                !(
-                    pending.uid === triggeredWakeUpReply.uid
-                )
+            (pending) => !(pending.uid === triggeredWakeUpReply.uid)
         )
 
         if (nextWakeUpReply) {
@@ -728,7 +725,8 @@ export async function apply(ctx: Context, config: Config) {
             const nextWakeUpReplies = pendingWakeUpReplies.filter(
                 (pending) =>
                     pending.triggerAt > now ||
-                    (pending.repeatRule != null && pending.repeatRule !== 'once')
+                    (pending.repeatRule != null &&
+                        pending.repeatRule !== 'once')
             )
 
             if (nextWakeUpReplies.length !== pendingWakeUpReplies.length) {

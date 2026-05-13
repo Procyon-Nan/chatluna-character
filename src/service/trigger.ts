@@ -217,7 +217,9 @@ export class TriggerStore extends Service {
         const now = Date.now()
         const info = this._infos[key] ?? createDefaultGroupInfo(config, now)
         let uid = Math.random().toString(36).slice(2, 8).padEnd(6, '0')
-        while ((info.pendingWakeUpReplies ?? []).some((item) => item.uid === uid)) {
+        while (
+            (info.pendingWakeUpReplies ?? []).some((item) => item.uid === uid)
+        ) {
             uid = Math.random().toString(36).slice(2, 8).padEnd(6, '0')
         }
 
@@ -417,10 +419,7 @@ function createWakeUpReply(
         `/${pad(configuredAt.getDate())}-${pad(configuredAt.getHours())}` +
         `:${pad(configuredAt.getMinutes())}:${pad(configuredAt.getSeconds())}`
 
-    const repeatText =
-        repeatRule === 'once'
-            ? ''
-            : `, repeat: ${repeatRule}`
+    const repeatText = repeatRule === 'once' ? '' : `, repeat: ${repeatRule}`
 
     return {
         uid,
@@ -462,7 +461,14 @@ function parseWakeUpTime(
     const weekly = raw.match(/^([1-7])-(\d{1,2}):(\d{1,2}):(\d{1,2})$/)
     if (repeatRule === 'weekly' && weekly) {
         const weekday = Number.parseInt(weekly[1], 10) % 7
-        const next = buildDate(year, month, day, weekly[2], weekly[3], weekly[4])
+        const next = buildDate(
+            year,
+            month,
+            day,
+            weekly[2],
+            weekly[3],
+            weekly[4]
+        )
         if (!next) return null
         next.setDate(next.getDate() + ((weekday - next.getDay() + 7) % 7))
         if (next.getTime() <= baseAt) next.setDate(next.getDate() + 7)
@@ -486,7 +492,9 @@ function parseWakeUpTime(
         return null
     }
 
-    const yearly = raw.match(/^(\d{1,2})\/(\d{1,2})-(\d{1,2}):(\d{1,2}):(\d{1,2})$/)
+    const yearly = raw.match(
+        /^(\d{1,2})\/(\d{1,2})-(\d{1,2}):(\d{1,2}):(\d{1,2})$/
+    )
     if (repeatRule === 'yearly' && yearly) {
         const targetMonth = Number.parseInt(yearly[1], 10) - 1
         const targetDay = Number.parseInt(yearly[2], 10)
@@ -534,10 +542,7 @@ function buildDate(
     return date
 }
 
-export function createDefaultGroupInfo(
-    config: Config,
-    now: number
-): GroupInfo {
+export function createDefaultGroupInfo(config: Config, now: number): GroupInfo {
     return {
         messageCount: 0,
         messageWait: false,

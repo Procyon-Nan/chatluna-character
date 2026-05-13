@@ -1,7 +1,7 @@
 /* eslint-disable generator-star-spacing */
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import { } from '@initencounter/vits'
+import {} from '@initencounter/vits'
 import {
     AIMessage,
     BaseMessage,
@@ -41,7 +41,7 @@ import {
 } from '../utils/index'
 import { Preset } from '../preset'
 
-import type { } from 'koishi-plugin-chatluna/services/chat'
+import type {} from 'koishi-plugin-chatluna/services/chat'
 import { getMessageContent } from 'koishi-plugin-chatluna/utils/string'
 import { ComputedRef } from 'koishi-plugin-chatluna'
 
@@ -276,9 +276,9 @@ function buildNextReplyToolTags(value: unknown) {
                         .replaceAll('"', '&quot;')
                     const maxWait =
                         condition.user_id.trim() !== 'all' &&
-                            typeof condition.max_wait_seconds === 'number' &&
-                            Number.isFinite(condition.max_wait_seconds) &&
-                            condition.max_wait_seconds > 0
+                        typeof condition.max_wait_seconds === 'number' &&
+                        Number.isFinite(condition.max_wait_seconds) &&
+                        condition.max_wait_seconds > 0
                             ? ` max_wait_seconds="${condition.max_wait_seconds}"`
                             : ''
                     tags.push(
@@ -338,7 +338,8 @@ function createReplyTools(
             },
             parts: {
                 type: 'array',
-                description: 'Multiple parts inside one message, joined in order.',
+                description:
+                    'Multiple parts inside one message, joined in order.',
                 items: {
                     ...part
                 }
@@ -434,11 +435,12 @@ function createReplyTools(
         },
         messages: {
             type: 'array',
-            description: 'List of messages to send. Each object in the array is one message. Use an empty array when no reply is needed.',
+            description:
+                'List of messages to send. Each object in the array is one message. Use an empty array when no reply is needed.',
             items: {
                 ...message
             }
-        },
+        }
     }
 
     if (
@@ -450,7 +452,7 @@ function createReplyTools(
         props['next_reply'] = {
             type: 'array',
             description:
-                'Set the next proactive trigger. Use this when you may need to speak again after this turn, such as waiting for someone\'s next reply, waiting for someone to finish sending a multi-part message, or speaking again after a period of silence. Examples: wait for user 123456789 to send the next message; wait until no one sends any new message for 600 seconds; wait for user 987654321 to send the first new message, then wait 10 seconds for them to stop sending more messages. Pass an array where each object is one OR group, and any group can trigger the reply. Inside each group, conditions are AND and must all be satisfied. New conditions replace old ones. If another trigger causes a reply before the condition is met, the old condition becomes invalid. Conditions are cleared after a successful trigger.',
+                "Set the next proactive trigger. Use this when you may need to speak again after this turn, such as waiting for someone's next reply, waiting for someone to finish sending a multi-part message, or speaking again after a period of silence. Examples: wait for user 123456789 to send the next message; wait until no one sends any new message for 600 seconds; wait for user 987654321 to send the first new message, then wait 10 seconds for them to stop sending more messages. Pass an array where each object is one OR group, and any group can trigger the reply. Inside each group, conditions are AND and must all be satisfied. New conditions replace old ones. If another trigger causes a reply before the condition is met, the old condition becomes invalid. Conditions are cleared after a successful trigger.",
             items: {
                 type: 'object',
                 properties: {
@@ -508,7 +510,7 @@ function createReplyTools(
     if (config.toolCallReplyThinkTag) {
         props.think = {
             type: 'string',
-            description: 'The character\'s internal thoughts about the message.'
+            description: "The character's internal thoughts about the message."
         }
         required.push('think')
     }
@@ -525,38 +527,49 @@ function createReplyTools(
 
     if (config.experimentalToolCallReply) {
         tools.push(
-            tool(async (args) => {
-                const input = args as Record<string, unknown>
+            tool(
+                async (args) => {
+                    const input = args as Record<string, unknown>
 
-                for (const field of ctx.chatluna_character.getReplyToolFields()) {
-                    if (input[field.name] == null) {
-                        continue
+                    for (const field of ctx.chatluna_character.getReplyToolFields()) {
+                        if (input[field.name] == null) {
+                            continue
+                        }
+
+                        if (
+                            field.isAvailable &&
+                            !field.isAvailable(ctx, session, config)
+                        ) {
+                            continue
+                        }
+
+                        await field.invoke(
+                            ctx,
+                            session,
+                            input[field.name],
+                            config
+                        )
                     }
 
-                    if (field.isAvailable && !field.isAvailable(ctx, session, config)) {
-                        continue
+                    return input.is_final === false
+                        ? replyToolProgress
+                        : {
+                              lc_direct_tool_output: true,
+                              replyEmitted: true
+                          }
+                },
+                {
+                    name: 'character_reply',
+                    description:
+                        'Send one or more in-character reply messages and required actions. All user-visible reply content must be sent through this tool. Use the literal string `\\n` for line breaks in all string fields. Do not use real newline characters. Do not manually wrap content in XML tags inside any field. Fill the structured fields directly. Do not end the turn with plain text output outside this tool.',
+                    returnDirect: false,
+                    schema: {
+                        type: 'object',
+                        properties: props,
+                        required
                     }
-
-                    await field.invoke(ctx, session, input[field.name], config)
                 }
-
-                return input.is_final === false
-                    ? replyToolProgress
-                    : {
-                        lc_direct_tool_output: true,
-                        replyEmitted: true
-                    }
-            }, {
-                name: 'character_reply',
-                description:
-                    'Send one or more in-character reply messages and required actions. All user-visible reply content must be sent through this tool. Use the literal string `\\n` for line breaks in all string fields. Do not use real newline characters. Do not manually wrap content in XML tags inside any field. Fill the structured fields directly. Do not end the turn with plain text output outside this tool.',
-                returnDirect: false,
-                schema: {
-                    type: 'object',
-                    properties: props,
-                    required
-                }
-            })
+            )
         )
     }
 
@@ -565,174 +578,202 @@ function createReplyTools(
     }
 
     tools.push(
-        tool(async () => {
-            const key = `${session.isDirect ? 'private' : 'group'}:${session.isDirect ? session.userId : session.guildId}`
-            const list = ctx.chatluna_character_trigger.getWakeUpReplies(key)
+        tool(
+            async () => {
+                const key = `${session.isDirect ? 'private' : 'group'}:${session.isDirect ? session.userId : session.guildId}`
+                const list =
+                    ctx.chatluna_character_trigger.getWakeUpReplies(key)
 
-            if (list.length < 1) {
-                return 'No wake_up_reply records.'
+                if (list.length < 1) {
+                    return 'No wake_up_reply records.'
+                }
+
+                return list
+                    .map((item, idx) => {
+                        return `${idx + 1}. uid=${item.uid}; repeat=${item.repeatRule ?? 'once'}; time=${item.rawTime}; next=${formatTimestamp(new Date(item.triggerAt))}; reason=${item.reason || '(empty)'}`
+                    })
+                    .join('\n')
+            },
+            {
+                name: 'wake_up_reply_query',
+                description:
+                    'Query existing wake_up_reply records for this chat. Use the returned uid with wake_up_reply_update or wake_up_reply_delete.',
+                returnDirect: false,
+                schema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                }
             }
+        ),
+        tool(
+            async (args) => {
+                const input = args as Record<string, unknown>
+                const key = `${session.isDirect ? 'private' : 'group'}:${session.isDirect ? session.userId : session.guildId}`
+                const repeat = input.repeat
+                const repeatRule: WakeUpReplyRepeatRule =
+                    repeat === 'daily' ||
+                    repeat === 'weekly' ||
+                    repeat === 'monthly' ||
+                    repeat === 'yearly'
+                        ? repeat
+                        : 'once'
+                const item =
+                    await ctx.chatluna_character_trigger.registerWakeUpReply(
+                        session,
+                        String(input.time),
+                        typeof input.reason === 'string' ? input.reason : '',
+                        repeatRule,
+                        config
+                    )
 
-            return list
-                .map((item, idx) => {
-                    return `${idx + 1}. uid=${item.uid}; repeat=${item.repeatRule ?? 'once'}; time=${item.rawTime}; next=${formatTimestamp(new Date(item.triggerAt))}; reason=${item.reason || '(empty)'}`
-                })
-                .join('\n')
-        }, {
-            name: 'wake_up_reply_query',
-            description:
-                'Query existing wake_up_reply records for this chat. Use the returned uid with wake_up_reply_update or wake_up_reply_delete.',
-            returnDirect: false,
-            schema: {
-                type: 'object',
-                properties: {},
-                required: []
-            }
-        }),
-        tool(async (args) => {
-            const input = args as Record<string, unknown>
-            const key = `${session.isDirect ? 'private' : 'group'}:${session.isDirect ? session.userId : session.guildId}`
-            const repeat = input.repeat
-            const repeatRule: WakeUpReplyRepeatRule =
-                repeat === 'daily' ||
-                repeat === 'weekly' ||
-                repeat === 'monthly' ||
-                repeat === 'yearly'
-                    ? repeat
-                    : 'once'
-            const item = await ctx.chatluna_character_trigger.registerWakeUpReply(
-                session,
-                String(input.time),
-                typeof input.reason === 'string' ? input.reason : '',
-                repeatRule,
-                config
-            )
+                if (!item) {
+                    return 'Failed to create wake_up_reply: invalid time format. Use YYYY/MM/DD-HH:mm:ss for once, HH:mm:ss for daily, 1-HH:mm:ss for weekly, DD-HH:mm:ss for monthly, or MM/DD-HH:mm:ss for yearly.'
+                }
 
-            if (!item) {
-                return 'Failed to create wake_up_reply: invalid time format. Use YYYY/MM/DD-HH:mm:ss for once, HH:mm:ss for daily, 1-HH:mm:ss for weekly, DD-HH:mm:ss for monthly, or MM/DD-HH:mm:ss for yearly.'
-            }
-
-            await ctx.chatluna_character_trigger.setWakeUpReplies(
-                session,
-                ctx.chatluna_character_trigger.getWakeUpReplies(key)
-            )
-            return `Created wake_up_reply: uid=${item.uid}.`
-        }, {
-            name: 'wake_up_reply_create',
-            description:
-                'Create a scheduled proactive trigger (one-shot or recurring). Use this to speak again at a specific time or on a regular schedule (daily, weekly, etc.) for reminders or planned actions.',
-            returnDirect: false,
-            schema: {
-                type: 'object',
-                properties: {
-                    time: {
-                        type: 'string',
-                        description:
-                            'Trigger time. once: YYYY/MM/DD-HH:mm:ss, daily: HH:mm:ss, weekly: 1-HH:mm:ss, monthly: DD-HH:mm:ss, yearly: MM/DD-HH:mm:ss.'
+                await ctx.chatluna_character_trigger.setWakeUpReplies(
+                    session,
+                    ctx.chatluna_character_trigger.getWakeUpReplies(key)
+                )
+                return `Created wake_up_reply: uid=${item.uid}.`
+            },
+            {
+                name: 'wake_up_reply_create',
+                description:
+                    'Create a scheduled proactive trigger (one-shot or recurring). Use this to speak again at a specific time or on a regular schedule (daily, weekly, etc.) for reminders or planned actions.',
+                returnDirect: false,
+                schema: {
+                    type: 'object',
+                    properties: {
+                        time: {
+                            type: 'string',
+                            description:
+                                'Trigger time. once: YYYY/MM/DD-HH:mm:ss, daily: HH:mm:ss, weekly: 1-HH:mm:ss, monthly: DD-HH:mm:ss, yearly: MM/DD-HH:mm:ss.'
+                        },
+                        reason: {
+                            type: 'string',
+                            description: 'Reason or note for the future trigger'
+                        },
+                        repeat: {
+                            type: 'string',
+                            enum: [
+                                'once',
+                                'daily',
+                                'weekly',
+                                'monthly',
+                                'yearly'
+                            ],
+                            description:
+                                'Repeat rule. once is one-shot. daily, weekly, monthly, and yearly automatically reschedule after triggering.'
+                        }
                     },
-                    reason: {
-                        type: 'string',
-                        description:
-                            'Reason or note for the future trigger'
-                    },
-                    repeat: {
-                        type: 'string',
-                        enum: ['once', 'daily', 'weekly', 'monthly', 'yearly'],
-                        description:
-                            'Repeat rule. once is one-shot. daily, weekly, monthly, and yearly automatically reschedule after triggering.'
-                    }
-                },
-                required: ['time', 'reason']
+                    required: ['time', 'reason']
+                }
             }
-        }),
-        tool(async (args) => {
-            const input = args as Record<string, unknown>
-            const repeat = input.repeat
-            const repeatRule: WakeUpReplyRepeatRule | undefined =
-                repeat === 'once' ||
-                repeat === 'daily' ||
-                repeat === 'weekly' ||
-                repeat === 'monthly' ||
-                repeat === 'yearly'
-                    ? repeat
-                    : undefined
-            const ok = await ctx.chatluna_character_trigger.updateWakeUpReply(
-                session,
-                String(input.uid),
-                typeof input.time === 'string' ? input.time : undefined,
-                typeof input.reason === 'string' ? input.reason : undefined,
-                repeatRule,
-                config
-            )
+        ),
+        tool(
+            async (args) => {
+                const input = args as Record<string, unknown>
+                const repeat = input.repeat
+                const repeatRule: WakeUpReplyRepeatRule | undefined =
+                    repeat === 'once' ||
+                    repeat === 'daily' ||
+                    repeat === 'weekly' ||
+                    repeat === 'monthly' ||
+                    repeat === 'yearly'
+                        ? repeat
+                        : undefined
+                const ok =
+                    await ctx.chatluna_character_trigger.updateWakeUpReply(
+                        session,
+                        String(input.uid),
+                        typeof input.time === 'string' ? input.time : undefined,
+                        typeof input.reason === 'string'
+                            ? input.reason
+                            : undefined,
+                        repeatRule,
+                        config
+                    )
 
-            return ok
-                ? 'Updated wake_up_reply.'
-                : 'Failed to update wake_up_reply: invalid uid, repeat rule, or time format.'
-        }, {
-            name: 'wake_up_reply_update',
-            description:
-                'Update an existing scheduled trigger by the uid returned from wake_up_reply_query. You can modify the time, reason, or repeat rule.',
-            returnDirect: false,
-            schema: {
-                type: 'object',
-                properties: {
-                    uid: {
-                        type: 'string',
-                        description: 'Short uid returned by wake_up_reply_query'
+                return ok
+                    ? 'Updated wake_up_reply.'
+                    : 'Failed to update wake_up_reply: invalid uid, repeat rule, or time format.'
+            },
+            {
+                name: 'wake_up_reply_update',
+                description:
+                    'Update an existing scheduled trigger by the uid returned from wake_up_reply_query. You can modify the time, reason, or repeat rule.',
+                returnDirect: false,
+                schema: {
+                    type: 'object',
+                    properties: {
+                        uid: {
+                            type: 'string',
+                            description:
+                                'Short uid returned by wake_up_reply_query'
+                        },
+                        time: {
+                            type: 'string',
+                            description:
+                                'Optional new trigger time (same formats as create)'
+                        },
+                        reason: {
+                            type: 'string',
+                            description: 'Optional new reason or note'
+                        },
+                        repeat: {
+                            type: 'string',
+                            enum: [
+                                'once',
+                                'daily',
+                                'weekly',
+                                'monthly',
+                                'yearly'
+                            ],
+                            description: 'Optional new repeat rule'
+                        }
                     },
-                    time: {
-                        type: 'string',
-                        description:
-                            'Optional new trigger time (same formats as create)'
-                    },
-                    reason: {
-                        type: 'string',
-                        description: 'Optional new reason or note'
-                    },
-                    repeat: {
-                        type: 'string',
-                        enum: ['once', 'daily', 'weekly', 'monthly', 'yearly'],
-                        description: 'Optional new repeat rule'
-                    }
-                },
-                required: ['uid']
+                    required: ['uid']
+                }
             }
-        }),
-        tool(async (args) => {
-            const input = args as Record<string, unknown>
-            const ok = await ctx.chatluna_character_trigger.deleteWakeUpReply(
-                session,
-                String(input.uid)
-            )
+        ),
+        tool(
+            async (args) => {
+                const input = args as Record<string, unknown>
+                const ok =
+                    await ctx.chatluna_character_trigger.deleteWakeUpReply(
+                        session,
+                        String(input.uid)
+                    )
 
-            return ok
-                ? 'Deleted wake_up_reply.'
-                : 'Failed to delete wake_up_reply: invalid uid.'
-        }, {
-            name: 'wake_up_reply_delete',
-            description:
-                'Delete an existing wake_up_reply by the uid returned from wake_up_reply_query.',
-            returnDirect: false,
-            schema: {
-                type: 'object',
-                properties: {
-                    uid: {
-                        type: 'string',
-                        description: 'Short uid returned by wake_up_reply_query'
-                    }
-                },
-                required: ['uid']
+                return ok
+                    ? 'Deleted wake_up_reply.'
+                    : 'Failed to delete wake_up_reply: invalid uid.'
+            },
+            {
+                name: 'wake_up_reply_delete',
+                description:
+                    'Delete an existing wake_up_reply by the uid returned from wake_up_reply_query.',
+                returnDirect: false,
+                schema: {
+                    type: 'object',
+                    properties: {
+                        uid: {
+                            type: 'string',
+                            description:
+                                'Short uid returned by wake_up_reply_query'
+                        }
+                    },
+                    required: ['uid']
+                }
             }
-        })
+        )
     )
 
     return tools
 }
 
-function formatReplyUserPrompt(
-    session: Session,
-    config: RuntimeConfig
-) {
+function formatReplyUserPrompt(session: Session, config: RuntimeConfig) {
     const tips: string[] = []
 
     if (config.experimentalToolCallReply && config.toolCalling) {
@@ -746,7 +787,9 @@ function formatReplyUserPrompt(
         config.toolCallReplyNextReply &&
         (!config.enableFixedIntervalTrigger || config.messageInterval !== 0)
     ) {
-        tips.push('Actively decide whether this turn needs `next_reply` triggers.')
+        tips.push(
+            'Actively decide whether this turn needs `next_reply` triggers.'
+        )
     }
 
     if (config.toolCallReplyWakeUpReply && config.toolCalling) {
@@ -811,7 +854,10 @@ function buildXmlMessage(args: Record<string, unknown>) {
 
     if (Array.isArray(args.parts)) {
         const content = args.parts
-            .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+            .filter(
+                (item) =>
+                    item && typeof item === 'object' && !Array.isArray(item)
+            )
             .map((item) => buildPart(item as Record<string, unknown>))
             .join('')
 
@@ -840,7 +886,11 @@ function buildXmlMessage(args: Record<string, unknown>) {
         return `<message${quote}><image>${escape(args.image)}</image></message>`
     }
 
-    if (args.file && typeof args.file === 'object' && !Array.isArray(args.file)) {
+    if (
+        args.file &&
+        typeof args.file === 'object' &&
+        !Array.isArray(args.file)
+    ) {
         const file = args.file as Record<string, unknown>
         if (!isHttpUrl(file.url)) {
             return `<message${quote}></message>`
@@ -848,7 +898,11 @@ function buildXmlMessage(args: Record<string, unknown>) {
         return `<message${quote}><file name="${escape(file.name ?? 'file', true)}">${escape(file.url)}</file></message>`
     }
 
-    if (args.video && typeof args.video === 'object' && !Array.isArray(args.video)) {
+    if (
+        args.video &&
+        typeof args.video === 'object' &&
+        !Array.isArray(args.video)
+    ) {
         const video = args.video as Record<string, unknown>
         if (!isHttpUrl(video.url)) {
             return `<message${quote}></message>`
@@ -872,7 +926,10 @@ function buildXmlMessage(args: Record<string, unknown>) {
     return `<message${quote}>${escape(args.text)}</message>`
 }
 
-function parseReplyTools(config: Config | GuildConfig | PrivateConfig, calls: ReplyToolCall[]) {
+function parseReplyTools(
+    config: Config | GuildConfig | PrivateConfig,
+    calls: ReplyToolCall[]
+) {
     const messages: string[] = []
     const nextReplyReasons: string[] = []
     let status: string | undefined
@@ -882,14 +939,19 @@ function parseReplyTools(config: Config | GuildConfig | PrivateConfig, calls: Re
             continue
         }
 
-        if (config.toolCallReplyStatusTag && typeof call.args.status === 'string') {
+        if (
+            config.toolCallReplyStatusTag &&
+            typeof call.args.status === 'string'
+        ) {
             status = call.args.status
         }
 
         if (Array.isArray(call.args.messages)) {
             for (const item of call.args.messages) {
                 if (item && typeof item === 'object' && !Array.isArray(item)) {
-                    messages.push(buildXmlMessage(item as Record<string, unknown>))
+                    messages.push(
+                        buildXmlMessage(item as Record<string, unknown>)
+                    )
                 }
             }
         }
@@ -931,7 +993,9 @@ function renderReplyToolXml(
 
         if (typeof call.args.status === 'string') {
             if (config.toolCallReplyStatusTag) {
-                blocks.push(`<status>\n${renderToolText(call.args.status)}\n</status>`)
+                blocks.push(
+                    `<status>\n${renderToolText(call.args.status)}\n</status>`
+                )
             }
         }
 
@@ -940,13 +1004,17 @@ function renderReplyToolXml(
             typeof call.args.think === 'string' &&
             call.args.think.trim()
         ) {
-            blocks.push(`<think>\n${renderToolText(call.args.think.trim())}\n</think>`)
+            blocks.push(
+                `<think>\n${renderToolText(call.args.think.trim())}\n</think>`
+            )
         }
 
         if (Array.isArray(call.args.messages)) {
             for (const item of call.args.messages) {
                 if (item && typeof item === 'object' && !Array.isArray(item)) {
-                    messages.push(buildXmlMessage(item as Record<string, unknown>))
+                    messages.push(
+                        buildXmlMessage(item as Record<string, unknown>)
+                    )
                 }
             }
         }
@@ -976,7 +1044,9 @@ function renderReplyToolXml(
                 config
             )
             if (Array.isArray(rendered)) {
-                actions.push(...rendered.filter((item) => item.trim().length > 0))
+                actions.push(
+                    ...rendered.filter((item) => item.trim().length > 0)
+                )
                 continue
             }
 
@@ -1110,8 +1180,9 @@ function createStreamConfig(
     signal?: AbortSignal,
     configurable?: Record<string, unknown>
 ) {
-    const conversationId = `${session.platform}:${session.isDirect ? 'private' : 'guild'
-        }:${session.isDirect ? session.userId : (session.guildId ?? session.channelId)}`
+    const conversationId = `${session.platform}:${
+        session.isDirect ? 'private' : 'guild'
+    }:${session.isDirect ? session.userId : (session.guildId ?? session.channelId)}`
 
     return {
         configurable: {
@@ -1141,8 +1212,9 @@ async function* streamAgentResponseContents(
     messageQueue?: MessageQueue,
     onAgentEvent?: (event: AgentEvent) => void | Promise<void>
 ): AsyncGenerator<StreamedResponseContentChunk> {
-    const conversationId = `${session.platform}:${session.isDirect ? 'private' : 'guild'
-        }:${session.isDirect ? session.userId : (session.guildId ?? session.channelId)}`
+    const conversationId = `${session.platform}:${
+        session.isDirect ? 'private' : 'guild'
+    }:${session.isDirect ? session.userId : (session.guildId ?? session.channelId)}`
 
     let finalReply = false
 
@@ -1164,9 +1236,14 @@ async function* streamAgentResponseContents(
     )
 
     for await (const responseChunk of responseStream) {
-        if (responseChunk.toolCalls?.some((call) => {
-            return call.name === 'character_reply' && call.args.is_final !== false
-        })) {
+        if (
+            responseChunk.toolCalls?.some((call) => {
+                return (
+                    call.name === 'character_reply' &&
+                    call.args.is_final !== false
+                )
+            })
+        ) {
             finalReply = true
         }
 
@@ -1192,13 +1269,14 @@ async function* streamAgentResponseContents(
         }
 
         const renderedContent =
-            config.experimentalToolCallReply && responseChunk.toolCalls?.length > 0
+            config.experimentalToolCallReply &&
+            responseChunk.toolCalls?.length > 0
                 ? renderReplyToolXml(
-                    ctx,
-                    session,
-                    config,
-                    responseChunk.toolCalls
-                )
+                      ctx,
+                      session,
+                      config,
+                      responseChunk.toolCalls
+                  )
                 : responseContent
         if (renderedContent.trim().length < 1) {
             continue
@@ -1468,28 +1546,8 @@ async function prepareMessages(
     const userPrompt = formatReplyUserPrompt(session, config)
     const humanMessage = new HumanMessage(
         (await currentPreset.input.format(
-                {
-                    history_new: historyNewMessages
-                        .join('\n\n')
-                        .replaceAll('{', '{{')
-                        .replaceAll('}', '}}'),
-                    history_last: historyLast,
-                    time: formatTimestamp(new Date()),
-                    stickers: '',
-                    status: temp.status ?? currentPreset.status ?? '',
-                    trigger_reason: triggerReasonText,
-                    prompt: session.content,
-                    built
-                },
-                session.app.chatluna.promptRenderer,
-                {
-                    session
-                }
-            )) + (userPrompt.length > 0 ? `\n\n${userPrompt}` : '')
-    )
-    const prompt = await currentPreset.input.format(
             {
-                history_new: recentMessages
+                history_new: historyNewMessages
                     .join('\n\n')
                     .replaceAll('{', '{{')
                     .replaceAll('}', '}}'),
@@ -1505,6 +1563,26 @@ async function prepareMessages(
             {
                 session
             }
+        )) + (userPrompt.length > 0 ? `\n\n${userPrompt}` : '')
+    )
+    const prompt = await currentPreset.input.format(
+        {
+            history_new: recentMessages
+                .join('\n\n')
+                .replaceAll('{', '{{')
+                .replaceAll('}', '}}'),
+            history_last: historyLast,
+            time: formatTimestamp(new Date()),
+            stickers: '',
+            status: temp.status ?? currentPreset.status ?? '',
+            trigger_reason: triggerReasonText,
+            prompt: session.content,
+            built
+        },
+        session.app.chatluna.promptRenderer,
+        {
+            session
+        }
     )
     const persistedHumanMessage = new HumanMessage(
         prompt + (userPrompt.length > 0 ? `\n\n${userPrompt}` : '')
@@ -1569,8 +1647,8 @@ async function prepareMessages(
             const current =
                 block.length > 0
                     ? block
-                        .split('\n\n')
-                        .filter((it) => it.length > 0 && it !== '...')
+                          .split('\n\n')
+                          .filter((it) => it.length > 0 && it !== '...')
                     : []
 
             if (!previous) {
@@ -1626,8 +1704,7 @@ async function* streamModelResponse(
     if (signal?.aborted) return
 
     try {
-        const lastMessage =
-            completionMessages[completionMessages.length - 1]
+        const lastMessage = completionMessages[completionMessages.length - 1]
         const historyMessages = completionMessages.slice(0, -1)
 
         const systemMessage =
@@ -1973,7 +2050,7 @@ export async function apply(ctx: Context, config: Config) {
             if (model.value == null) {
                 logger.warn(
                     `Model ${copyOfConfig.model} load not successful. ` +
-                    'Please check your logs output.'
+                        'Please check your logs output.'
                 )
                 return
             }
@@ -2025,9 +2102,9 @@ export async function apply(ctx: Context, config: Config) {
             if (!chainPool[chainKey]) {
                 logger.debug(
                     'completion message: ' +
-                    JSON.stringify(
-                        completionMessages.map((it) => it.content)
-                    )
+                        JSON.stringify(
+                            completionMessages.map((it) => it.content)
+                        )
                 )
             }
 
@@ -2106,8 +2183,14 @@ export async function apply(ctx: Context, config: Config) {
                         hasNonEmptyReplies = true
                     }
 
-                    if (copyOfConfig.experimentalToolCallReply && chunk.toolCalls) {
-                        const toolState = parseReplyTools(copyOfConfig, chunk.toolCalls)
+                    if (
+                        copyOfConfig.experimentalToolCallReply &&
+                        chunk.toolCalls
+                    ) {
+                        const toolState = parseReplyTools(
+                            copyOfConfig,
+                            chunk.toolCalls
+                        )
                         nextReplyReasons.push(...toolState.nextReplyReasons)
                     } else {
                         nextReplyReasons.push(
