@@ -153,6 +153,18 @@ const commonMuteConfig = Schema.object({
     .description('闭嘴')
     .collapse()
 
+const wakeUpReplyConfig = Schema.boolean()
+    .default(true)
+    .description(
+        '是否启用 `wake_up_reply` 独立工具（需同时开启“工具调用”，使模型可以查询、创建、修改、删除未来主动触发条件，支持一次性与重复触发）'
+    )
+
+const commonScheduleConfig = Schema.object({
+    toolCallReplyWakeUpReply: wakeUpReplyConfig
+})
+    .description('计划任务')
+    .collapse()
+
 const commonToolCallReplyConfig = Schema.object({
     experimentalToolCallReply: Schema.boolean()
         .default(false)
@@ -173,11 +185,6 @@ const commonToolCallReplyConfig = Schema.object({
         .default(true)
         .description(
             '是否启用 `next_reply`（使模型可以设置下一次短期主动触发条件）'
-        ),
-    toolCallReplyWakeUpReply: Schema.boolean()
-        .default(true)
-        .description(
-            '是否启用 `wake_up_reply`（使模型可以设置未来某个时间点的主动触发条件）'
         )
 })
     .description('工具调用回复')
@@ -374,6 +381,7 @@ const globalPrivateConfigObject = Schema.intersect([
     })
         .description('空闲触发')
         .collapse(),
+    commonScheduleConfig,
     commonMuteConfig,
     commonConversationConfig
 ]) as Schema<PrivateConfig>
@@ -418,6 +426,7 @@ const privateConfigObject = Schema.intersect([
     })
         .description('空闲触发')
         .collapse(),
+    commonScheduleConfig,
     commonMuteConfig,
     commonConversationConfig
 ]) as Schema<PrivateConfig>
@@ -486,6 +495,7 @@ const globalGroupConfigObject = Schema.intersect([
     })
         .description('空闲触发')
         .collapse(),
+    commonScheduleConfig,
     commonMuteConfig,
     commonConversationConfig
 ]) as Schema<GuildConfig>
@@ -557,6 +567,7 @@ const guildConfigObject = Schema.intersect([
     })
         .description('空闲触发')
         .collapse(),
+    commonScheduleConfig,
     commonMuteConfig,
     commonConversationConfig
 ]) as Schema<GuildConfig>
