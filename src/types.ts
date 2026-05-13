@@ -123,6 +123,7 @@ export interface CharacterVariableRecord {
 
 export interface WakeUpReplyRecord {
     id?: number
+    uid: string
     sessionKey: string
     botId: string
     channelId: string
@@ -131,10 +132,18 @@ export interface WakeUpReplyRecord {
     rawTime: string
     reason: string
     naturalReason: string
+    repeatRule?: WakeUpReplyRepeatRule | null
     triggerAtV2: Date
     createdAtV2: Date
     updatedAt: Date
 }
+
+export type WakeUpReplyRepeatRule =
+    | 'once'
+    | 'daily'
+    | 'weekly'
+    | 'monthly'
+    | 'yearly'
 
 export interface OneBotHistoryMessage {
     raw_message?: string
@@ -203,9 +212,11 @@ export interface PendingNextReply {
 }
 
 export interface PendingWakeUpReply {
+    uid: string
     rawTime: string
     reason: string
     naturalReason: string
+    repeatRule?: WakeUpReplyRepeatRule
     triggerAt: number
     createdAt: number
 }

@@ -554,15 +554,20 @@ async function processSchedulerTickForGuild(
     // 以本次回复真正完成的时刻作为空闲重试锚点。
     const completedAt = Date.now()
     if (triggeredWakeUpReply) {
+        const nextWakeUpReply = store.rescheduleWakeUpReply(
+            triggeredWakeUpReply,
+            completedAt
+        )
         info.pendingWakeUpReplies = (info.pendingWakeUpReplies ?? []).filter(
             (pending) =>
                 !(
-                    pending.createdAt === triggeredWakeUpReply.createdAt &&
-                    pending.triggerAt === triggeredWakeUpReply.triggerAt &&
-                    pending.rawTime === triggeredWakeUpReply.rawTime &&
-                    pending.reason === triggeredWakeUpReply.reason
+                    pending.uid === triggeredWakeUpReply.uid
                 )
         )
+
+        if (nextWakeUpReply) {
+            info.pendingWakeUpReplies.push(nextWakeUpReply)
+        }
 
         await store.setWakeUpReplies(session, info.pendingWakeUpReplies ?? [])
     }
@@ -721,7 +726,9 @@ export async function apply(ctx: Context, config: Config) {
         ) {
             const pendingWakeUpReplies = info.pendingWakeUpReplies ?? []
             const nextWakeUpReplies = pendingWakeUpReplies.filter(
-                (pending) => pending.triggerAt > now
+                (pending) =>
+                    pending.triggerAt > now ||
+                    (pending.repeatRule != null && pending.repeatRule !== 'once')
             )
 
             if (nextWakeUpReplies.length !== pendingWakeUpReplies.length) {
