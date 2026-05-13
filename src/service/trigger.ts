@@ -216,9 +216,9 @@ export class TriggerStore extends Service {
         const key = `${session.isDirect ? 'private' : 'group'}:${session.isDirect ? session.userId : session.guildId}`
         const now = Date.now()
         const info = this._infos[key] ?? createDefaultGroupInfo(config, now)
-        let uid = Math.random().toString(36).slice(2, 8)
+        let uid = Math.random().toString(36).slice(2, 8).padEnd(6, '0')
         while ((info.pendingWakeUpReplies ?? []).some((item) => item.uid === uid)) {
-            uid = Math.random().toString(36).slice(2, 8)
+            uid = Math.random().toString(36).slice(2, 8).padEnd(6, '0')
         }
 
         const pending = createWakeUpReply(
@@ -445,7 +445,7 @@ function parseWakeUpTime(
         return parseWakeUpTimeToTimestamp(raw)
     }
 
-    const time = raw.match(/^(\d{2}):(\d{2}):(\d{2})$/)
+    const time = raw.match(/^(\d{1,2}):(\d{1,2}):(\d{1,2})$/)
     const date = new Date(baseAt)
     const year = date.getFullYear()
     const month = date.getMonth()
@@ -459,17 +459,17 @@ function parseWakeUpTime(
         return next.getTime()
     }
 
-    const weekly = raw.match(/^([1-7])-(\d{2}):(\d{2}):(\d{2})$/)
+    const weekly = raw.match(/^([1-7])-(\d{1,2}):(\d{1,2}):(\d{1,2})$/)
     if (repeatRule === 'weekly' && weekly) {
         const weekday = Number.parseInt(weekly[1], 10) % 7
         const next = buildDate(year, month, day, weekly[2], weekly[3], weekly[4])
         if (!next) return null
-        next.setDate(next.getDate() + (weekday - next.getDay() + 7) % 7)
+        next.setDate(next.getDate() + ((weekday - next.getDay() + 7) % 7))
         if (next.getTime() <= baseAt) next.setDate(next.getDate() + 7)
         return next.getTime()
     }
 
-    const monthly = raw.match(/^(\d{2})-(\d{2}):(\d{2}):(\d{2})$/)
+    const monthly = raw.match(/^(\d{1,2})-(\d{1,2}):(\d{1,2}):(\d{1,2})$/)
     if (repeatRule === 'monthly' && monthly) {
         const targetDay = Number.parseInt(monthly[1], 10)
         for (let i = 0; i < 24; i++) {
@@ -486,7 +486,7 @@ function parseWakeUpTime(
         return null
     }
 
-    const yearly = raw.match(/^(\d{2})\/(\d{2})-(\d{2}):(\d{2}):(\d{2})$/)
+    const yearly = raw.match(/^(\d{1,2})\/(\d{1,2})-(\d{1,2}):(\d{1,2}):(\d{1,2})$/)
     if (repeatRule === 'yearly' && yearly) {
         const targetMonth = Number.parseInt(yearly[1], 10) - 1
         const targetDay = Number.parseInt(yearly[2], 10)
