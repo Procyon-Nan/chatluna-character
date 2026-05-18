@@ -15,6 +15,8 @@ import { ChatLunaChatModel } from 'koishi-plugin-chatluna/llm-core/platform/mode
 import { parseRawModelName } from 'koishi-plugin-chatluna/llm-core/utils/count_tokens'
 import { Config } from '..'
 import {
+    CharacterAfterChatEventPayload,
+    CharacterBeforeChatEventPayload,
     ChatLunaChain,
     GroupTemp,
     GuildConfig,
@@ -75,6 +77,16 @@ interface NextReplyToolGroup {
 }
 
 const replyToolProgress = '__character_reply_progress__'
+
+function getCharacterSessionKey(session: Session) {
+    return `${session.isDirect ? 'private' : 'group'}:${
+        session.isDirect ? session.userId : session.guildId
+    }`
+}
+
+function getCharacterConversationId(session: Session) {
+    return session.isDirect ? session.userId : session.guildId
+}
 
 class PendingMessageQueue extends MessageQueue {
     private _messages: {
@@ -1475,6 +1487,7 @@ async function prepareMessages(
 ): Promise<{
     completionMessages: BaseMessage[]
     persistedHumanMessage: BaseMessage
+    systemPrompt: string
 }> {
     const { recentMessages, lastMessage, contextMessages } =
         await formatMessage(
@@ -1486,17 +1499,6 @@ async function prepareMessages(
             focusMessage
         )
 
-    const formattedSystemPrompt = await currentPreset.system.format(
-        {
-            time: '',
-            stickers: '',
-            status: ''
-        },
-        session.app.chatluna.promptRenderer,
-        {
-            session
-        }
-    )
     if (!chain) {
         logger.debug('messages_new: ' + JSON.stringify(recentMessages))
         logger.debug('messages_last: ' + JSON.stringify(lastMessage))
@@ -1512,8 +1514,10 @@ async function prepareMessages(
         .replaceAll('}', '}}')
     const built = {
         preset: currentPreset.name,
-        conversationId: session.isDirect ? session.userId : session.guildId
+        conversationId: getCharacterConversationId(session)
     }
+    const sessionKey = getCharacterSessionKey(session)
+    const conversationId = built.conversationId
 
     let historyNewMessages = recentMessages
     if (
@@ -1544,41 +1548,78 @@ async function prepareMessages(
 
     temp.lastHistoryNew = recentMessages.slice()
     const userPrompt = formatReplyUserPrompt(session, config)
+    const timestamp = formatTimestamp(new Date())
+    const persistedHistoryNew = recentMessages
+        .join('\n\n')
+        .replaceAll('{', '{{')
+        .replaceAll('}', '}}')
+    const systemVariables: Record<string, unknown> = {
+        time: '',
+        stickers: '',
+        status: ''
+    }
+    const inputVariables: Record<string, unknown> = {
+        history_new: historyNewMessages
+            .join('\n\n')
+            .replaceAll('{', '{{')
+            .replaceAll('}', '}}'),
+        history_last: historyLast,
+        time: timestamp,
+        stickers: '',
+        status: temp.status ?? currentPreset.status ?? '',
+        trigger_reason: triggerReasonText,
+        prompt: session.content,
+        built
+    }
+    const persistedInputVariables: Record<string, unknown> = {
+        ...inputVariables,
+        history_new: persistedHistoryNew,
+        time: timestamp
+    }
+
+    const beforePayload: CharacterBeforeChatEventPayload = {
+        session,
+        sessionKey,
+        conversationId,
+        presetName: currentPreset.name,
+        preset: currentPreset,
+        messages: messages.slice(),
+        focusMessage,
+        triggerReason,
+        systemVariables,
+        inputVariables,
+        persistedInputVariables
+    }
+
+    try {
+        await ctx.parallel('chatluna_character/before-chat', beforePayload)
+    } catch (error) {
+        logger.error(error)
+    }
+
+    const formattedSystemPrompt = await currentPreset.system.format(
+        systemVariables,
+        session.app.chatluna.promptRenderer,
+        {
+            session
+        }
+    )
     const humanMessage = new HumanMessage(
         (await currentPreset.input.format(
-            {
-                history_new: historyNewMessages
-                    .join('\n\n')
-                    .replaceAll('{', '{{')
-                    .replaceAll('}', '}}'),
-                history_last: historyLast,
-                time: formatTimestamp(new Date()),
-                stickers: '',
-                status: temp.status ?? currentPreset.status ?? '',
-                trigger_reason: triggerReasonText,
-                prompt: session.content,
-                built
-            },
+            inputVariables,
             session.app.chatluna.promptRenderer,
             {
                 session
             }
         )) + (userPrompt.length > 0 ? `\n\n${userPrompt}` : '')
     )
+    const finalPersistedInputVariables = {
+        ...inputVariables,
+        ...persistedInputVariables,
+        history_new: persistedHistoryNew
+    }
     const prompt = await currentPreset.input.format(
-        {
-            history_new: recentMessages
-                .join('\n\n')
-                .replaceAll('{', '{{')
-                .replaceAll('}', '}}'),
-            history_last: historyLast,
-            time: formatTimestamp(new Date()),
-            stickers: '',
-            status: temp.status ?? currentPreset.status ?? '',
-            trigger_reason: triggerReasonText,
-            prompt: session.content,
-            built
-        },
+        finalPersistedInputVariables,
         session.app.chatluna.promptRenderer,
         {
             session
@@ -1684,7 +1725,8 @@ async function prepareMessages(
 
     return {
         completionMessages,
-        persistedHumanMessage
+        persistedHumanMessage,
+        systemPrompt: formattedSystemPrompt
     }
 }
 
@@ -2085,7 +2127,7 @@ export async function apply(ctx: Context, config: Config) {
             const temp = await service.getTemp(session, latestMessages)
             const focusMessage = latestMessages[latestMessages.length - 1]
 
-            const { completionMessages, persistedHumanMessage } =
+            const { completionMessages, persistedHumanMessage, systemPrompt } =
                 await prepareMessages(
                     ctx,
                     latestMessages,
@@ -2267,7 +2309,32 @@ export async function apply(ctx: Context, config: Config) {
                 nextReplyReasons
             )
 
-            service.muteAtLeast(session, copyOfConfig.coolDownTime * 1000)
+            const completedMessages =
+                service.getMessages(key) ?? persistedMessages
+            const afterPayload: CharacterAfterChatEventPayload = {
+                session,
+                sessionKey: key,
+                conversationId: getCharacterConversationId(session),
+                presetName: currentPreset.name,
+                preset: currentPreset,
+                systemPrompt,
+                messages: completedMessages.slice(),
+                focusMessage,
+                triggerReason,
+                persistedHumanMessage,
+                lastResponseMessage,
+                completionMessages: temp.completionMessages.slice(),
+                status: latestStatus
+            }
+
+            service
+                .muteAtLeast(session, copyOfConfig.coolDownTime * 1000)
+                .then(() =>
+                    ctx.parallel('chatluna_character/after-chat', afterPayload)
+                )
+                .catch((error) => {
+                    logger.error(error)
+                })
         } catch (e) {
             logger.error(e)
         } finally {

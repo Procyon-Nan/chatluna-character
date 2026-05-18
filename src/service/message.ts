@@ -4,6 +4,7 @@ import { ObjectLock } from 'koishi-plugin-chatluna/utils/lock'
 import { Config } from '..'
 import { Preset } from '../preset'
 import {
+    CharacterClearChatHistoryEventPayload,
     CharacterReplyToolField,
     GroupLock,
     GroupTemp,
@@ -28,6 +29,23 @@ const MAX_TIMEOUT_MS = 2147483647
 
 function getMessageKey(message: Message) {
     return `${message.id}\n${message.messageId ?? ''}\n${message.timestamp ?? 0}\n${message.content}`
+}
+
+function toClearChatHistoryPayload(
+    sessionKey: string
+): CharacterClearChatHistoryEventPayload {
+    const isDirect = sessionKey.startsWith('private:')
+    const conversationId = isDirect
+        ? sessionKey.slice('private:'.length)
+        : sessionKey.startsWith('group:')
+          ? sessionKey.slice('group:'.length)
+          : sessionKey
+
+    return {
+        sessionKey,
+        conversationId,
+        isDirect
+    }
 }
 
 export class MessageCollector extends Service {
@@ -445,6 +463,17 @@ export class MessageCollector extends Service {
         return this._getMutex(groupId).lock()
     }
 
+    private _emitClearChatHistory(sessionKey: string) {
+        this.ctx
+            .parallel(
+                'chatluna_character/clear-chat-history',
+                toClearChatHistoryPayload(sessionKey)
+            )
+            .catch((error) => {
+                this.logger.error(error)
+            })
+    }
+
     async clear(groupId?: string) {
         if (groupId) {
             const isDirect = groupId.startsWith('private:')
@@ -493,11 +522,18 @@ export class MessageCollector extends Service {
             } finally {
                 unlock()
             }
+            this._emitClearChatHistory(groupId)
             return
         }
 
         // For clear-all, acquire locks in sorted order to prevent deadlocks
-        const groupIds = Object.keys(this._groupLocks).sort()
+        const groupIds = Array.from(
+            new Set([
+                ...Object.keys(this._groupLocks),
+                ...Object.keys(this._messages),
+                ...Object.keys(this._groupTemp)
+            ])
+        ).sort()
         const unlocks: (() => void)[] = []
         for (const gid of groupIds) {
             unlocks.push(await this._lockByGroupId(gid))
@@ -558,6 +594,10 @@ export class MessageCollector extends Service {
             for (let i = unlocks.length - 1; i >= 0; i--) {
                 unlocks[i]()
             }
+        }
+
+        for (const groupId of groupIds) {
+            this._emitClearChatHistory(groupId)
         }
     }
 
@@ -667,7 +707,11 @@ export class MessageCollector extends Service {
                           quotedElements
                       )
                   })(),
-                  name: session.quote?.user?.name,
+                  name: getNotEmptyString(
+                      session.quote?.user?.nick,
+                      session.quote?.user?.name,
+                      session.quote?.user?.id
+                  ),
                   id: session.quote?.user?.id,
                   messageId: session.quote.id,
                   timestamp: session.quote.timestamp
@@ -677,10 +721,11 @@ export class MessageCollector extends Service {
         const message: Message = {
             content,
             name: getNotEmptyString(
-                session.author?.nick,
-                session.author?.name,
+                session.event.user?.nick,
                 session.event.user?.name,
-                session.username
+                session.author?.username,
+                session.username,
+                session.userId
             ),
             id: session.author.id,
             messageId: session.messageId,
@@ -874,7 +919,7 @@ export class MessageCollector extends Service {
             const maxMessageSize =
                 Object.assign({}, this._config, globalConfig, guildConfig)
                     .maxMessages ?? 40
-            let groupArray = this._messages[groupId] ?? []
+            const groupArray = this._messages[groupId] ?? []
 
             groupArray.push(message)
 

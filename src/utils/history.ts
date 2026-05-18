@@ -355,9 +355,9 @@ async function toBotMsg(
     return {
         content,
         name: getNotEmptyString(
-            msg.member?.name,
             msg.user?.nick,
             msg.user?.name,
+            msg.member?.name,
             id
         ),
         id,
@@ -371,8 +371,8 @@ async function toBotMsg(
                       msg.quote.elements ?? h.parse(msg.quote.content ?? '')
                   ),
                   name: getNotEmptyString(
-                      msg.quote.user?.name,
                       msg.quote.user?.nick,
+                      msg.quote.user?.name,
                       msg.quote.user?.id
                   ),
                   id: msg.quote.user?.id,
