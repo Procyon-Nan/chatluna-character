@@ -312,9 +312,8 @@ export function mapElementToString(
                 continue
             }
 
-            const marker = element.type === 'audio' ? 'voice' : 'video'
-            if (marker === 'voice') {
-                filteredBuffer.push(`<voice>${escapeXml(String(url))}</voice>`)
+            if (element.type === 'audio') {
+                filteredBuffer.push(`<audio>${escapeXml(String(url))}</audio>`)
                 continue
             }
 

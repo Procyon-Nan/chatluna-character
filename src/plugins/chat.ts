@@ -336,6 +336,10 @@ function createReplyTools(
                 type: 'string',
                 description: 'HTTP(S) image URL'
             },
+            audio: {
+                type: 'string',
+                description: 'HTTP(S) audio URL to send as a voice message'
+            },
             parts: {
                 type: 'array',
                 description:
@@ -884,6 +888,13 @@ function buildXmlMessage(args: Record<string, unknown>) {
             return `<message${quote}></message>`
         }
         return `<message${quote}><image>${escape(args.image)}</image></message>`
+    }
+
+    if (typeof args.audio === 'string') {
+        if (!isHttpUrl(args.audio)) {
+            return `<message${quote}></message>`
+        }
+        return `<message${quote}><audio>${escape(args.audio)}</audio></message>`
     }
 
     if (

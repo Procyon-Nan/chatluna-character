@@ -1,4 +1,4 @@
-# 本文件最后更新时间：2026-04-03
+# 本文件最后更新时间：2026-05-19
 # 
 # 使用须知
 # 
@@ -376,6 +376,10 @@ system: |
     - 视频消息（优先使用它发送100MB以内的视频，但大概率会丢失元数据；更大的视频请改用file）：
       <output>
       <message><video>https://example.com/video.mp4</video></message>
+      </output>
+    - 音频文件消息（以语音消息发送）：
+      <output>
+      <message><audio>https://example.com/audio.mp3</audio></message>
       </output>
     - 文件消息：
       <output>
