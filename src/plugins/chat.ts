@@ -296,62 +296,6 @@ function renderToolText(value: string) {
     return value.replaceAll('\\n', '\n')
 }
 
-function getReplyToolInputError(
-    config: Config | GuildConfig | PrivateConfig,
-    args: Record<string, unknown>
-) {
-    const missing = ['is_final', 'messages'].filter((key) => args[key] == null)
-
-    if (config.toolCallReplyStatusTag && args.status == null) {
-        missing.push('status')
-    }
-
-    if (config.toolCallReplyThinkTag && args.think == null) {
-        missing.push('think')
-    }
-
-    if (missing.length > 0) {
-        return `Missing required field(s): ${missing.join(', ')}`
-    }
-
-    if (typeof args.is_final !== 'boolean') {
-        return 'Field is_final must be a boolean'
-    }
-
-    if (!Array.isArray(args.messages)) {
-        return 'Field messages must be an array'
-    }
-
-    if (config.toolCallReplyStatusTag && typeof args.status !== 'string') {
-        return 'Field status must be a string'
-    }
-
-    if (config.toolCallReplyThinkTag && typeof args.think !== 'string') {
-        return 'Field think must be a string'
-    }
-
-    return undefined
-}
-
-function filterReplyToolCalls(
-    config: Config | GuildConfig | PrivateConfig,
-    calls: ReplyToolCall[]
-) {
-    return calls.filter((call) => {
-        if (call.name !== 'character_reply') {
-            return true
-        }
-
-        const err = getReplyToolInputError(config, call.args)
-        if (err) {
-            logger.debug(`Skip invalid character_reply tool call: ${err}`)
-            return false
-        }
-
-        return true
-    })
-}
-
 function createReplyTools(
     ctx: Context,
     session: Session,
@@ -1353,12 +1297,7 @@ async function* streamAgentResponseContents(
 
         const renderedContent =
             config.experimentalToolCallReply && calls && calls.length > 0
-                ? renderReplyToolXml(
-                      ctx,
-                      session,
-                      config,
-                      calls
-                  )
+                ? renderReplyToolXml(ctx, session, config, calls)
                 : responseContent
         if (renderedContent.trim().length < 1) {
             continue
@@ -2364,5 +2303,61 @@ export async function apply(ctx: Context, config: Config) {
                 )
             }
         }
+    })
+}
+
+function getReplyToolInputError(
+    config: Config | GuildConfig | PrivateConfig,
+    args: Record<string, unknown>
+) {
+    const missing = ['is_final', 'messages'].filter((key) => args[key] == null)
+
+    if (config.toolCallReplyStatusTag && args.status == null) {
+        missing.push('status')
+    }
+
+    if (config.toolCallReplyThinkTag && args.think == null) {
+        missing.push('think')
+    }
+
+    if (missing.length > 0) {
+        return `Missing required field(s): ${missing.join(', ')}`
+    }
+
+    if (typeof args.is_final !== 'boolean') {
+        return 'Field is_final must be a boolean'
+    }
+
+    if (!Array.isArray(args.messages)) {
+        return 'Field messages must be an array'
+    }
+
+    if (config.toolCallReplyStatusTag && typeof args.status !== 'string') {
+        return 'Field status must be a string'
+    }
+
+    if (config.toolCallReplyThinkTag && typeof args.think !== 'string') {
+        return 'Field think must be a string'
+    }
+
+    return undefined
+}
+
+function filterReplyToolCalls(
+    config: Config | GuildConfig | PrivateConfig,
+    calls: ReplyToolCall[]
+) {
+    return calls.filter((call) => {
+        if (call.name !== 'character_reply') {
+            return true
+        }
+
+        const err = getReplyToolInputError(config, call.args)
+        if (err) {
+            logger.debug(`Skip invalid character_reply tool call: ${err}`)
+            return false
+        }
+
+        return true
     })
 }
