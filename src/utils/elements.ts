@@ -264,6 +264,9 @@ class TextMatchParser {
                 case 'video':
                     currentElements.push(h('video', { src: match.content }))
                     break
+                case 'audio':
+                    currentElements.push(h.audio(match.content, match.extra))
+                    break
                 case 'sticker':
                     currentElements.push(
                         h.image(match.content, { sticker: true })
@@ -380,6 +383,16 @@ class TextMatchParser {
                     result.push(
                         makeMatch(
                             'video',
+                            el.children?.[0]?.attrs?.content ??
+                                el.attrs?.content,
+                            el.attrs
+                        )
+                    )
+                    break
+                case 'audio':
+                    result.push(
+                        makeMatch(
+                            'audio',
                             el.children?.[0]?.attrs?.content ??
                                 el.attrs?.content,
                             el.attrs
