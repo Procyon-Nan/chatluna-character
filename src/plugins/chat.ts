@@ -567,6 +567,7 @@ function createReplyTools(
                     description:
                         'Send one or more in-character reply messages and required actions. All user-visible reply content must be sent through this tool. Use the literal string `\\n` for line breaks in all string fields. Do not use real newline characters. Do not manually wrap content in XML tags inside any field. Fill the structured fields directly. Do not end the turn with plain text output outside this tool.',
                     returnDirect: false,
+                    verboseParsingErrors: true,
                     schema: {
                         type: 'object',
                         properties: props,
@@ -1103,14 +1104,16 @@ async function parseResponseContent(
 ): Promise<StreamedParsedResponseChunk> {
     let parsedResponse: ParsedResponse
     const { responseMessage, responseContent, isIntermediate } = chunk
-    const toolState =
+    const calls =
         config.experimentalToolCallReply && chunk.toolCalls?.length > 0
-            ? parseReplyTools(config, chunk.toolCalls)
+            ? filterReplyToolCalls(config, chunk.toolCalls)
             : undefined
-    const renderedContent =
-        config.experimentalToolCallReply && chunk.toolCalls?.length > 0
-            ? renderReplyToolXml(ctx, session, config, chunk.toolCalls)
-            : responseContent
+    const toolState =
+        calls && calls.length > 0 ? parseReplyTools(config, calls) : undefined
+    const hasCalls = calls && calls.length > 0
+    const renderedContent = hasCalls
+        ? renderReplyToolXml(ctx, session, config, calls)
+        : responseContent
 
     if (
         !toolState &&
@@ -1126,7 +1129,7 @@ async function parseResponseContent(
         return {
             responseMessage,
             responseContent: renderedContent,
-            toolCalls: chunk.toolCalls,
+            toolCalls: calls,
             parsedResponse: {
                 elements: [],
                 rawMessage: responseContent,
@@ -1186,7 +1189,7 @@ async function parseResponseContent(
     return {
         responseMessage,
         responseContent: renderedContent,
-        toolCalls: chunk.toolCalls,
+        toolCalls: calls,
         parsedResponse
     }
 }
@@ -1254,8 +1257,14 @@ async function* streamAgentResponseContents(
     )
 
     for await (const responseChunk of responseStream) {
+        const calls =
+            config.experimentalToolCallReply &&
+            responseChunk.toolCalls?.length > 0
+                ? filterReplyToolCalls(config, responseChunk.toolCalls)
+                : responseChunk.toolCalls
+
         if (
-            responseChunk.toolCalls?.some((call) => {
+            calls?.some((call) => {
                 return (
                     call.name === 'character_reply' &&
                     call.args.is_final !== false
@@ -1268,7 +1277,7 @@ async function* streamAgentResponseContents(
         if (
             finalReply &&
             responseChunk.phase === 'final' &&
-            (!responseChunk.toolCalls || responseChunk.toolCalls.length < 1)
+            (!calls || calls.length < 1)
         ) {
             continue
         }
@@ -1287,14 +1296,8 @@ async function* streamAgentResponseContents(
         }
 
         const renderedContent =
-            config.experimentalToolCallReply &&
-            responseChunk.toolCalls?.length > 0
-                ? renderReplyToolXml(
-                      ctx,
-                      session,
-                      config,
-                      responseChunk.toolCalls
-                  )
+            config.experimentalToolCallReply && calls && calls.length > 0
+                ? renderReplyToolXml(ctx, session, config, calls)
                 : responseContent
         if (renderedContent.trim().length < 1) {
             continue
@@ -1310,7 +1313,7 @@ async function* streamAgentResponseContents(
             responseMessage,
             responseContent: renderedContent,
             isIntermediate,
-            toolCalls: responseChunk.toolCalls
+            toolCalls: calls
         }
     }
 }
@@ -2300,5 +2303,61 @@ export async function apply(ctx: Context, config: Config) {
                 )
             }
         }
+    })
+}
+
+function getReplyToolInputError(
+    config: Config | GuildConfig | PrivateConfig,
+    args: Record<string, unknown>
+) {
+    const missing = ['is_final', 'messages'].filter((key) => args[key] == null)
+
+    if (config.toolCallReplyStatusTag && args.status == null) {
+        missing.push('status')
+    }
+
+    if (config.toolCallReplyThinkTag && args.think == null) {
+        missing.push('think')
+    }
+
+    if (missing.length > 0) {
+        return `Missing required field(s): ${missing.join(', ')}`
+    }
+
+    if (typeof args.is_final !== 'boolean') {
+        return 'Field is_final must be a boolean'
+    }
+
+    if (!Array.isArray(args.messages)) {
+        return 'Field messages must be an array'
+    }
+
+    if (config.toolCallReplyStatusTag && typeof args.status !== 'string') {
+        return 'Field status must be a string'
+    }
+
+    if (config.toolCallReplyThinkTag && typeof args.think !== 'string') {
+        return 'Field think must be a string'
+    }
+
+    return undefined
+}
+
+function filterReplyToolCalls(
+    config: Config | GuildConfig | PrivateConfig,
+    calls: ReplyToolCall[]
+) {
+    return calls.filter((call) => {
+        if (call.name !== 'character_reply') {
+            return true
+        }
+
+        const err = getReplyToolInputError(config, call.args)
+        if (err) {
+            logger.debug(`Skip invalid character_reply tool call: ${err}`)
+            return false
+        }
+
+        return true
     })
 }
