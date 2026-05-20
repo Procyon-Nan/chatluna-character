@@ -202,20 +202,7 @@ export async function createChatLunaChain(
         prompt: chatPrompt.value,
         agentMode: 'tool-calling',
         returnIntermediateSteps: false,
-        handleParsingErrors: ((err: Error) => {
-            const missing = Array.from(
-                err.message.matchAll(
-                    /must have required property '([^']+)'/g
-                ),
-                (item) => item[1]
-            )
-
-            if (missing.length > 0) {
-                return `Invalid or incomplete tool input. Missing required field(s): ${missing.join(', ')}. Please call the tool again with all required fields.`
-            }
-
-            return `Invalid or incomplete tool input. ${err.message}. Please fix the schema mismatch and try again.`
-        }) as unknown as boolean,
+        handleParsingErrors: true,
         instructions: computed(() => undefined)
     })
 

@@ -333,6 +333,25 @@ function getReplyToolInputError(
     return undefined
 }
 
+function filterReplyToolCalls(
+    config: Config | GuildConfig | PrivateConfig,
+    calls: ReplyToolCall[]
+) {
+    return calls.filter((call) => {
+        if (call.name !== 'character_reply') {
+            return true
+        }
+
+        const err = getReplyToolInputError(config, call.args)
+        if (err) {
+            logger.debug(`Skip invalid character_reply tool call: ${err}`)
+            return false
+        }
+
+        return true
+    })
+}
+
 function createReplyTools(
     ctx: Context,
     session: Session,
@@ -995,12 +1014,6 @@ function parseReplyTools(
             continue
         }
 
-        const err = getReplyToolInputError(config, call.args)
-        if (err) {
-            logger.debug(`Skip invalid character_reply tool call: ${err}`)
-            continue
-        }
-
         if (
             config.toolCallReplyStatusTag &&
             typeof call.args.status === 'string'
@@ -1050,12 +1063,6 @@ function renderReplyToolXml(
 
     for (const call of calls) {
         if (call.name !== 'character_reply') {
-            continue
-        }
-
-        const err = getReplyToolInputError(config, call.args)
-        if (err) {
-            logger.debug(`Skip invalid character_reply tool call: ${err}`)
             continue
         }
 
@@ -1153,14 +1160,16 @@ async function parseResponseContent(
 ): Promise<StreamedParsedResponseChunk> {
     let parsedResponse: ParsedResponse
     const { responseMessage, responseContent, isIntermediate } = chunk
-    const toolState =
+    const calls =
         config.experimentalToolCallReply && chunk.toolCalls?.length > 0
-            ? parseReplyTools(config, chunk.toolCalls)
+            ? filterReplyToolCalls(config, chunk.toolCalls)
             : undefined
-    const renderedContent =
-        config.experimentalToolCallReply && chunk.toolCalls?.length > 0
-            ? renderReplyToolXml(ctx, session, config, chunk.toolCalls)
-            : responseContent
+    const toolState =
+        calls && calls.length > 0 ? parseReplyTools(config, calls) : undefined
+    const hasCalls = calls && calls.length > 0
+    const renderedContent = hasCalls
+        ? renderReplyToolXml(ctx, session, config, calls)
+        : responseContent
 
     if (
         !toolState &&
@@ -1236,7 +1245,7 @@ async function parseResponseContent(
     return {
         responseMessage,
         responseContent: renderedContent,
-        toolCalls: chunk.toolCalls,
+        toolCalls: calls,
         parsedResponse
     }
 }
@@ -1304,8 +1313,14 @@ async function* streamAgentResponseContents(
     )
 
     for await (const responseChunk of responseStream) {
+        const calls =
+            config.experimentalToolCallReply &&
+            responseChunk.toolCalls?.length > 0
+                ? filterReplyToolCalls(config, responseChunk.toolCalls)
+                : responseChunk.toolCalls
+
         if (
-            responseChunk.toolCalls?.some((call) => {
+            calls?.some((call) => {
                 return (
                     call.name === 'character_reply' &&
                     call.args.is_final !== false
@@ -1318,7 +1333,7 @@ async function* streamAgentResponseContents(
         if (
             finalReply &&
             responseChunk.phase === 'final' &&
-            (!responseChunk.toolCalls || responseChunk.toolCalls.length < 1)
+            (!calls || calls.length < 1)
         ) {
             continue
         }
@@ -1337,13 +1352,12 @@ async function* streamAgentResponseContents(
         }
 
         const renderedContent =
-            config.experimentalToolCallReply &&
-            responseChunk.toolCalls?.length > 0
+            config.experimentalToolCallReply && calls && calls.length > 0
                 ? renderReplyToolXml(
                       ctx,
                       session,
                       config,
-                      responseChunk.toolCalls
+                      calls
                   )
                 : responseContent
         if (renderedContent.trim().length < 1) {
@@ -1360,7 +1374,7 @@ async function* streamAgentResponseContents(
             responseMessage,
             responseContent: renderedContent,
             isIntermediate,
-            toolCalls: responseChunk.toolCalls
+            toolCalls: calls
         }
     }
 }
