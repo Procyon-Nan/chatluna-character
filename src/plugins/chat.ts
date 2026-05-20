@@ -296,6 +296,43 @@ function renderToolText(value: string) {
     return value.replaceAll('\\n', '\n')
 }
 
+function getReplyToolInputError(
+    config: Config | GuildConfig | PrivateConfig,
+    args: Record<string, unknown>
+) {
+    const missing = ['is_final', 'messages'].filter((key) => args[key] == null)
+
+    if (config.toolCallReplyStatusTag && args.status == null) {
+        missing.push('status')
+    }
+
+    if (config.toolCallReplyThinkTag && args.think == null) {
+        missing.push('think')
+    }
+
+    if (missing.length > 0) {
+        return `Missing required field(s): ${missing.join(', ')}`
+    }
+
+    if (typeof args.is_final !== 'boolean') {
+        return 'Field is_final must be a boolean'
+    }
+
+    if (!Array.isArray(args.messages)) {
+        return 'Field messages must be an array'
+    }
+
+    if (config.toolCallReplyStatusTag && typeof args.status !== 'string') {
+        return 'Field status must be a string'
+    }
+
+    if (config.toolCallReplyThinkTag && typeof args.think !== 'string') {
+        return 'Field think must be a string'
+    }
+
+    return undefined
+}
+
 function createReplyTools(
     ctx: Context,
     session: Session,
@@ -567,6 +604,7 @@ function createReplyTools(
                     description:
                         'Send one or more in-character reply messages and required actions. All user-visible reply content must be sent through this tool. Use the literal string `\\n` for line breaks in all string fields. Do not use real newline characters. Do not manually wrap content in XML tags inside any field. Fill the structured fields directly. Do not end the turn with plain text output outside this tool.',
                     returnDirect: false,
+                    verboseParsingErrors: true,
                     schema: {
                         type: 'object',
                         properties: props,
@@ -957,6 +995,12 @@ function parseReplyTools(
             continue
         }
 
+        const err = getReplyToolInputError(config, call.args)
+        if (err) {
+            logger.debug(`Skip invalid character_reply tool call: ${err}`)
+            continue
+        }
+
         if (
             config.toolCallReplyStatusTag &&
             typeof call.args.status === 'string'
@@ -1006,6 +1050,12 @@ function renderReplyToolXml(
 
     for (const call of calls) {
         if (call.name !== 'character_reply') {
+            continue
+        }
+
+        const err = getReplyToolInputError(config, call.args)
+        if (err) {
+            logger.debug(`Skip invalid character_reply tool call: ${err}`)
             continue
         }
 
