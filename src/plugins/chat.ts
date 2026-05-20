@@ -506,12 +506,7 @@ function createReplyTools(
         props.status = {
             type: 'string',
             description:
-                'Continuously maintained status text. You MUST carry over ' +
-                'and incrementally update the previous status; do not ' +
-                'rewrite from scratch each time. Preserve recent history ' +
-                'and memory entries until they are no longer relevant. ' +
-                'Follow the exact format defined in the system prompt. ' +
-                'Do not include XML tags in this field.'
+                'Continuously maintained status text. You MUST carry over and incrementally update the previous status; do not rewrite from scratch each time. Preserve recent history and memory entries until they are no longer relevant. Follow the exact format defined in the system prompt. Do not include XML tags in this field.'
         }
         required.push('status')
     }
@@ -788,22 +783,13 @@ function formatReplyUserPrompt(session: Session, config: RuntimeConfig) {
     if (config.experimentalToolCallReply && config.toolCalling) {
         tips.push(
             'All user-visible reply content must be sent through `character_reply`. Do not end the turn with plain text outside this tool.',
-            'Before calling time-consuming tools (such as searching), ' +
-                'send a progress update to the user with `character_reply` ' +
-                'first. Quick tools that finish almost instantly, such as ' +
-                'reading a voice message, do not need this.'
+            'Before calling time-consuming tools (such as searching), send a progress update to the user with `character_reply` first. Quick tools that finish almost instantly, such as reading a voice message, do not need this.'
         )
 
         if (config.toolCallReplyStatusTag) {
             tips.push(
                 'The `status` field must strictly follow the <status> format specified in the system prompt. Do not change that format arbitrarily, and do not include the opening or closing <status> XML tags in the field value.',
-                'Your conversation context does not include previous tool ' +
-                    'call records. Use the memory section in `status` to ' +
-                    'briefly note what each tool call did (e.g. "searched X", ' +
-                    '"set wake_up for Y"). Keep these notes until the context ' +
-                    'no longer contains any related messages or the topic is ' +
-                    'clearly no longer relevant, then drop them. This ' +
-                    'prevents duplicate or conflicting operations.'
+                'Your conversation context does not include previous tool call records. Use the memory section in `status` to briefly note what each tool call did (e.g. "searched X", "set wake_up for Y"). Keep these notes until the context no longer contains any related messages or the topic is clearly no longer relevant, then drop them. This prevents duplicate or conflicting operations.'
             )
         }
     }
