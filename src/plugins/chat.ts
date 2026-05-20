@@ -1129,7 +1129,7 @@ async function parseResponseContent(
         return {
             responseMessage,
             responseContent: renderedContent,
-            toolCalls: chunk.toolCalls,
+            toolCalls: calls,
             parsedResponse: {
                 elements: [],
                 rawMessage: responseContent,
