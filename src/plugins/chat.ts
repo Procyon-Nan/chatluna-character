@@ -1724,55 +1724,82 @@ async function* streamModelResponse(
 ): AsyncGenerator<StreamedParsedResponseChunk> {
     if (signal?.aborted) return
 
-    try {
-        const lastMessage = completionMessages[completionMessages.length - 1]
-        const historyMessages = completionMessages.slice(0, -1)
+    let err: unknown
+    let failedMessage: BaseMessage | undefined
+    for (let idx = 0; idx < 2; idx++) {
+        try {
+            const messages =
+                idx === 0 || !String(err).includes('Failed to parse response')
+                    ? completionMessages
+                    : completionMessages.concat(
+                          ...(failedMessage ? [failedMessage] : []),
+                          new HumanMessage(
+                              config.experimentalToolCallReply &&
+                                  config.toolCalling
+                                  ? 'Your previous reply was not sent through `character_reply`, so it could not be delivered. ' +
+                                        'Do not repeat completed external tool calls unless necessary. ' +
+                                        'Use the content from the previous reply and call `character_reply` now.'
+                                  : 'Your previous reply used an invalid format and could not be delivered. ' +
+                                        'Reply again using valid XML output with <message> tags.'
+                          )
+                      )
+            const lastMessage = messages[messages.length - 1]
+            const historyMessages = messages.slice(0, -1)
 
-        const systemMessage =
-            chain != null ? historyMessages.shift() : undefined
+            const systemMessage =
+                chain != null ? historyMessages.shift() : undefined
 
-        if (chain) {
-            for await (const responseChunk of streamAgentResponseContents(
-                ctx,
-                chain,
-                session,
-                model,
-                config,
-                presetName,
-                systemMessage,
-                historyMessages,
-                lastMessage,
-                signal,
-                messageQueue,
-                onAgentEvent
-            )) {
-                yield await parseResponseContent(
+            if (chain) {
+                for await (const responseChunk of streamAgentResponseContents(
                     ctx,
+                    chain,
                     session,
+                    model,
                     config,
-                    responseChunk
-                )
+                    presetName,
+                    systemMessage,
+                    historyMessages,
+                    lastMessage,
+                    signal,
+                    messageQueue,
+                    onAgentEvent
+                )) {
+                    failedMessage = responseChunk.responseMessage
+                    yield await parseResponseContent(
+                        ctx,
+                        session,
+                        config,
+                        responseChunk
+                    )
+                }
+
+                return
             }
 
+            const responseMessage = await model.invoke(
+                messages,
+                createStreamConfig(session, model, presetName, signal)
+            )
+            failedMessage = responseMessage
+            const responseContent = getMessageContent(responseMessage.content)
+
+            logger.debug(`model response:\n${responseContent}`)
+
+            yield await parseResponseContent(ctx, session, config, {
+                responseMessage,
+                responseContent,
+                isIntermediate: false
+            })
             return
+        } catch (e) {
+            if (signal?.aborted) return
+            if (idx < 1) {
+                err = e
+                logger.warn('model response failed, retry once', e)
+                continue
+            }
+            logger.error('model requests failed', e)
         }
-
-        const responseMessage = await model.invoke(
-            completionMessages,
-            createStreamConfig(session, model, presetName, signal)
-        )
-        const responseContent = getMessageContent(responseMessage.content)
-
-        logger.debug(`model response:\n${responseContent}`)
-
-        yield await parseResponseContent(ctx, session, config, {
-            responseMessage,
-            responseContent,
-            isIntermediate: false
-        })
-    } catch (e) {
-        if (signal?.aborted) return
-        logger.error('model requests failed', e)
     }
 }
 
