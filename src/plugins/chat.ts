@@ -1725,22 +1725,22 @@ async function* streamModelResponse(
     if (signal?.aborted) return
 
     let err: unknown
+    let failedMessage: BaseMessage | undefined
     for (let idx = 0; idx < 2; idx++) {
         try {
             const messages =
                 idx === 0 || !String(err).includes('Failed to parse response')
                     ? completionMessages
                     : completionMessages.concat(
+                          ...(failedMessage ? [failedMessage] : []),
                           new HumanMessage(
                               config.experimentalToolCallReply &&
                                   config.toolCalling
                                   ? 'Your previous reply was not sent through `character_reply`, so it could not be delivered. ' +
                                         'Do not repeat completed external tool calls unless necessary. ' +
-                                        'Use the content from the previous reply and call `character_reply` now. Previous error:\n' +
-                                        String(err)
+                                        'Use the content from the previous reply and call `character_reply` now.'
                                   : 'Your previous reply used an invalid format and could not be delivered. ' +
-                                        'Reply again using valid XML output with <message> tags. Previous error:\n' +
-                                        String(err)
+                                        'Reply again using valid XML output with <message> tags.'
                           )
                       )
             const lastMessage = messages[messages.length - 1]
@@ -1764,6 +1764,7 @@ async function* streamModelResponse(
                     messageQueue,
                     onAgentEvent
                 )) {
+                    failedMessage = responseChunk.responseMessage
                     yield await parseResponseContent(
                         ctx,
                         session,
@@ -1779,6 +1780,7 @@ async function* streamModelResponse(
                 messages,
                 createStreamConfig(session, model, presetName, signal)
             )
+            failedMessage = responseMessage
             const responseContent = getMessageContent(responseMessage.content)
 
             logger.debug(`model response:\n${responseContent}`)
