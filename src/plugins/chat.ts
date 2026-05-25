@@ -15,6 +15,9 @@ import { ChatLunaChatModel } from 'koishi-plugin-chatluna/llm-core/platform/mode
 import { parseRawModelName } from 'koishi-plugin-chatluna/llm-core/utils/count_tokens'
 import { Config } from '..'
 import {
+    CharacterBaseMessageSnapshot,
+    CharacterMessageSnapshot,
+    CharacterPresetSnapshot,
     ChatLunaChain,
     GroupTemp,
     GuildConfig,
@@ -75,6 +78,32 @@ interface NextReplyToolGroup {
 }
 
 const replyToolProgress = '__character_reply_progress__'
+
+function snapshotPreset(preset: PresetTemplate): CharacterPresetSnapshot {
+    return {
+        name: preset.name,
+        status: preset.status,
+        nick_name: preset.nick_name.slice(),
+        input: { rawString: preset.input.rawString },
+        system: { rawString: preset.system.rawString },
+        mute_keyword: preset.mute_keyword?.slice(),
+        path: preset.path
+    }
+}
+
+function snapshotMessage(value: Message): CharacterMessageSnapshot
+function snapshotMessage(value: Message[]): CharacterMessageSnapshot[]
+function snapshotMessage(value: Message | Message[]) {
+    return JSON.parse(JSON.stringify(value))
+}
+
+function snapshotBaseMessage(value: BaseMessage): CharacterBaseMessageSnapshot
+function snapshotBaseMessage(
+    value: BaseMessage[]
+): CharacterBaseMessageSnapshot[]
+function snapshotBaseMessage(value: BaseMessage | BaseMessage[]) {
+    return JSON.parse(JSON.stringify(value))
+}
 
 class PendingMessageQueue extends MessageQueue {
     private _messages: {
@@ -1617,18 +1646,10 @@ async function prepareMessages(
             }`,
             targetId: built.conversationId,
             presetName: currentPreset.name,
-            preset: {
-                name: currentPreset.name,
-                status: currentPreset.status,
-                nick_name: currentPreset.nick_name.slice(),
-                input: { rawString: currentPreset.input.rawString },
-                system: { rawString: currentPreset.system.rawString },
-                mute_keyword: currentPreset.mute_keyword?.slice(),
-                path: currentPreset.path
-            },
-            messages: JSON.parse(JSON.stringify(messages)),
+            preset: snapshotPreset(currentPreset),
+            messages: snapshotMessage(messages),
             focusMessage: focusMessage
-                ? JSON.parse(JSON.stringify(focusMessage))
+                ? snapshotMessage(focusMessage)
                 : undefined,
             triggerReason
         })
@@ -1766,7 +1787,7 @@ async function* streamModelResponse(
                                   config.toolCalling
                                   ? 'Your previous reply was not sent through `character_reply`, so it could not be delivered. ' +
                                         'Do not repeat completed external tool calls unless necessary. ' +
-                                        'Use the content from the previous reply and call `character_reply` now.'
+                                    'Use the content from the previous reply and call `character_reply` now.'
                                   : 'Your previous reply used an invalid format and could not be delivered. ' +
                                         'Reply again using valid XML output with <message> tags.'
                           )
@@ -2343,40 +2364,25 @@ export async function apply(ctx: Context, config: Config) {
                 nextReplyReasons
             )
 
-            await service.muteAtLeast(
-                session,
-                copyOfConfig.coolDownTime * 1000
-            )
+            await service.muteAtLeast(session, copyOfConfig.coolDownTime * 1000)
             await ctx.parallel('chatluna_character/after-chat', {
                 session,
                 sessionKey: key,
                 targetId: session.isDirect ? session.userId : session.guildId,
                 presetName: currentPreset.name,
-                preset: {
-                    name: currentPreset.name,
-                    status: currentPreset.status,
-                    nick_name: currentPreset.nick_name.slice(),
-                    input: { rawString: currentPreset.input.rawString },
-                    system: {
-                        rawString: currentPreset.system.rawString
-                    },
-                    mute_keyword: currentPreset.mute_keyword?.slice(),
-                    path: currentPreset.path
-                },
-                messages: JSON.parse(JSON.stringify(persistedMessages)),
+                preset: snapshotPreset(currentPreset),
+                messages: snapshotMessage(persistedMessages),
                 focusMessage: focusMessage
-                    ? JSON.parse(JSON.stringify(focusMessage))
+                    ? snapshotMessage(focusMessage)
                     : undefined,
                 triggerReason,
-                persistedHumanMessage: JSON.parse(
-                    JSON.stringify(persistedHumanMessage)
+                persistedHumanMessage: snapshotBaseMessage(
+                    persistedHumanMessage
                 ),
                 lastResponseMessage: lastResponseMessage
-                    ? JSON.parse(JSON.stringify(lastResponseMessage))
+                    ? snapshotBaseMessage(lastResponseMessage)
                     : undefined,
-                completionMessages: JSON.parse(
-                    JSON.stringify(temp.completionMessages)
-                ),
+                completionMessages: snapshotBaseMessage(temp.completionMessages),
                 status: latestStatus
             })
         } catch (e) {
