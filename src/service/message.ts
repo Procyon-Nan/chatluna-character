@@ -450,7 +450,7 @@ export class MessageCollector extends Service {
         this.ctx
             .parallel('chatluna_character/clear-chat-history', {
                 sessionKey,
-                conversationId: isDirect
+                targetId: isDirect
                     ? sessionKey.slice('private:'.length)
                     : sessionKey.startsWith('group:')
                       ? sessionKey.slice('group:'.length)
@@ -515,7 +515,16 @@ export class MessageCollector extends Service {
         }
 
         // For clear-all, acquire locks in sorted order to prevent deadlocks
-        const groupIds = Object.keys(this._groupLocks).sort()
+        const groupIds = Array.from(
+            new Set([
+                ...Object.keys(this._messages),
+                ...Object.keys(this._groupLocks),
+                ...Object.keys(this._groupTemp),
+                ...Object.keys(this._responseWaiters),
+                ...Object.keys(this._pendingCooldownTriggers),
+                ...Object.keys(this._cooldownTriggerTimers)
+            ])
+        ).sort()
         const unlocks: (() => void)[] = []
         for (const gid of groupIds) {
             unlocks.push(await this._lockByGroupId(gid))

@@ -1615,11 +1615,21 @@ async function prepareMessages(
             sessionKey: `${session.isDirect ? 'private' : 'group'}:${
                 session.isDirect ? session.userId : session.guildId
             }`,
-            conversationId: built.conversationId,
+            targetId: built.conversationId,
             presetName: currentPreset.name,
-            preset: currentPreset,
-            messages: messages.slice(),
-            focusMessage,
+            preset: {
+                name: currentPreset.name,
+                status: currentPreset.status,
+                nick_name: currentPreset.nick_name.slice(),
+                input: { rawString: currentPreset.input.rawString },
+                system: { rawString: currentPreset.system.rawString },
+                mute_keyword: currentPreset.mute_keyword?.slice(),
+                path: currentPreset.path
+            },
+            messages: JSON.parse(JSON.stringify(messages)),
+            focusMessage: focusMessage
+                ? JSON.parse(JSON.stringify(focusMessage))
+                : undefined,
             triggerReason
         })
     } catch (error) {
@@ -2335,24 +2345,42 @@ export async function apply(ctx: Context, config: Config) {
 
             service
                 .muteAtLeast(session, copyOfConfig.coolDownTime * 1000)
-                .then(() =>
-                    ctx.parallel('chatluna_character/after-chat', {
+                .then(() => {
+                    return ctx.parallel('chatluna_character/after-chat', {
                         session,
                         sessionKey: key,
-                        conversationId: session.isDirect
+                        targetId: session.isDirect
                             ? session.userId
                             : session.guildId,
                         presetName: currentPreset.name,
-                        preset: currentPreset,
-                        messages: persistedMessages.slice(),
-                        focusMessage,
+                        preset: {
+                            name: currentPreset.name,
+                            status: currentPreset.status,
+                            nick_name: currentPreset.nick_name.slice(),
+                            input: { rawString: currentPreset.input.rawString },
+                            system: {
+                                rawString: currentPreset.system.rawString
+                            },
+                            mute_keyword: currentPreset.mute_keyword?.slice(),
+                            path: currentPreset.path
+                        },
+                        messages: JSON.parse(JSON.stringify(persistedMessages)),
+                        focusMessage: focusMessage
+                            ? JSON.parse(JSON.stringify(focusMessage))
+                            : undefined,
                         triggerReason,
-                        persistedHumanMessage,
-                        lastResponseMessage,
-                        completionMessages: temp.completionMessages.slice(),
+                        persistedHumanMessage: JSON.parse(
+                            JSON.stringify(persistedHumanMessage)
+                        ),
+                        lastResponseMessage: lastResponseMessage
+                            ? JSON.parse(JSON.stringify(lastResponseMessage))
+                            : undefined,
+                        completionMessages: JSON.parse(
+                            JSON.stringify(temp.completionMessages)
+                        ),
                         status: latestStatus
                     })
-                )
+                })
                 .catch((error) => {
                     logger.error(error)
                 })

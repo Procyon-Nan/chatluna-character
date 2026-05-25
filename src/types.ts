@@ -167,36 +167,54 @@ export interface PresetTemplate {
     path?: string
 }
 
+export interface CharacterPromptTemplateSnapshot {
+    readonly rawString: string
+}
+
+export interface CharacterPresetSnapshot {
+    readonly name: string
+    readonly status?: string
+    readonly nick_name: readonly string[]
+    readonly input: CharacterPromptTemplateSnapshot
+    readonly system: CharacterPromptTemplateSnapshot
+    readonly mute_keyword?: readonly string[]
+    readonly path?: string
+}
+
+export type CharacterMessageSnapshot = Readonly<Message>
+
+export type CharacterBaseMessageSnapshot = Readonly<Record<string, unknown>>
+
 export interface CharacterBeforeChatEventPayload {
-    session: Session
-    sessionKey: string
-    conversationId: string | undefined
-    presetName: string
-    preset: PresetTemplate
-    messages: Message[]
-    focusMessage?: Message
-    triggerReason?: string
+    readonly session: Session
+    readonly sessionKey: string
+    readonly targetId: string | undefined
+    readonly presetName: string
+    readonly preset: CharacterPresetSnapshot
+    readonly messages: readonly CharacterMessageSnapshot[]
+    readonly focusMessage?: CharacterMessageSnapshot
+    readonly triggerReason?: string
 }
 
 export interface CharacterAfterChatEventPayload {
-    session: Session
-    sessionKey: string
-    conversationId: string | undefined
-    presetName: string
-    preset: PresetTemplate
-    messages: Message[]
-    focusMessage?: Message
-    triggerReason?: string
-    persistedHumanMessage: BaseMessage
-    lastResponseMessage?: BaseMessage
-    completionMessages: BaseMessage[]
-    status?: string | null
+    readonly session: Session
+    readonly sessionKey: string
+    readonly targetId: string | undefined
+    readonly presetName: string
+    readonly preset: CharacterPresetSnapshot
+    readonly messages: readonly CharacterMessageSnapshot[]
+    readonly focusMessage?: CharacterMessageSnapshot
+    readonly triggerReason?: string
+    readonly persistedHumanMessage: CharacterBaseMessageSnapshot
+    readonly lastResponseMessage?: CharacterBaseMessageSnapshot
+    readonly completionMessages: readonly CharacterBaseMessageSnapshot[]
+    readonly status?: string | null
 }
 
 export interface CharacterClearChatHistoryEventPayload {
-    sessionKey: string
-    conversationId: string
-    isDirect: boolean
+    readonly sessionKey: string
+    readonly targetId: string
+    readonly isDirect: boolean
 }
 
 export interface GroupInfo {
