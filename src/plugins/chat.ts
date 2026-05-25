@@ -2343,47 +2343,44 @@ export async function apply(ctx: Context, config: Config) {
                 nextReplyReasons
             )
 
-            service
-                .muteAtLeast(session, copyOfConfig.coolDownTime * 1000)
-                .then(() => {
-                    return ctx.parallel('chatluna_character/after-chat', {
-                        session,
-                        sessionKey: key,
-                        targetId: session.isDirect
-                            ? session.userId
-                            : session.guildId,
-                        presetName: currentPreset.name,
-                        preset: {
-                            name: currentPreset.name,
-                            status: currentPreset.status,
-                            nick_name: currentPreset.nick_name.slice(),
-                            input: { rawString: currentPreset.input.rawString },
-                            system: {
-                                rawString: currentPreset.system.rawString
-                            },
-                            mute_keyword: currentPreset.mute_keyword?.slice(),
-                            path: currentPreset.path
-                        },
-                        messages: JSON.parse(JSON.stringify(persistedMessages)),
-                        focusMessage: focusMessage
-                            ? JSON.parse(JSON.stringify(focusMessage))
-                            : undefined,
-                        triggerReason,
-                        persistedHumanMessage: JSON.parse(
-                            JSON.stringify(persistedHumanMessage)
-                        ),
-                        lastResponseMessage: lastResponseMessage
-                            ? JSON.parse(JSON.stringify(lastResponseMessage))
-                            : undefined,
-                        completionMessages: JSON.parse(
-                            JSON.stringify(temp.completionMessages)
-                        ),
-                        status: latestStatus
-                    })
-                })
-                .catch((error) => {
-                    logger.error(error)
-                })
+            await service.muteAtLeast(
+                session,
+                copyOfConfig.coolDownTime * 1000
+            )
+            ctx.parallel('chatluna_character/after-chat', {
+                session,
+                sessionKey: key,
+                targetId: session.isDirect ? session.userId : session.guildId,
+                presetName: currentPreset.name,
+                preset: {
+                    name: currentPreset.name,
+                    status: currentPreset.status,
+                    nick_name: currentPreset.nick_name.slice(),
+                    input: { rawString: currentPreset.input.rawString },
+                    system: {
+                        rawString: currentPreset.system.rawString
+                    },
+                    mute_keyword: currentPreset.mute_keyword?.slice(),
+                    path: currentPreset.path
+                },
+                messages: JSON.parse(JSON.stringify(persistedMessages)),
+                focusMessage: focusMessage
+                    ? JSON.parse(JSON.stringify(focusMessage))
+                    : undefined,
+                triggerReason,
+                persistedHumanMessage: JSON.parse(
+                    JSON.stringify(persistedHumanMessage)
+                ),
+                lastResponseMessage: lastResponseMessage
+                    ? JSON.parse(JSON.stringify(lastResponseMessage))
+                    : undefined,
+                completionMessages: JSON.parse(
+                    JSON.stringify(temp.completionMessages)
+                ),
+                status: latestStatus
+            }).catch((error) => {
+                logger.error(error)
+            })
         } catch (e) {
             logger.error(e)
         } finally {
