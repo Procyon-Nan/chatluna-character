@@ -167,6 +167,38 @@ export interface PresetTemplate {
     path?: string
 }
 
+export interface CharacterBeforeChatEventPayload {
+    session: Session
+    sessionKey: string
+    conversationId: string | undefined
+    presetName: string
+    preset: PresetTemplate
+    messages: Message[]
+    focusMessage?: Message
+    triggerReason?: string
+}
+
+export interface CharacterAfterChatEventPayload {
+    session: Session
+    sessionKey: string
+    conversationId: string | undefined
+    presetName: string
+    preset: PresetTemplate
+    messages: Message[]
+    focusMessage?: Message
+    triggerReason?: string
+    persistedHumanMessage: BaseMessage
+    lastResponseMessage?: BaseMessage
+    completionMessages: BaseMessage[]
+    status?: string | null
+}
+
+export interface CharacterClearChatHistoryEventPayload {
+    sessionKey: string
+    conversationId: string
+    isDirect: boolean
+}
+
 export interface GroupInfo {
     messageCount: number
     messageWait?: boolean
@@ -295,5 +327,17 @@ declare module 'koishi' {
     interface Tables {
         chathub_character_variable: CharacterVariableRecord
         chathub_character_wake_up_reply: WakeUpReplyRecord
+    }
+
+    interface Events {
+        'chatluna_character/before-chat': (
+            payload: CharacterBeforeChatEventPayload
+        ) => void | Promise<void>
+        'chatluna_character/after-chat': (
+            payload: CharacterAfterChatEventPayload
+        ) => void | Promise<void>
+        'chatluna_character/clear-chat-history': (
+            payload: CharacterClearChatHistoryEventPayload
+        ) => void | Promise<void>
     }
 }

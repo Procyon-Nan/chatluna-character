@@ -1608,6 +1608,24 @@ async function prepareMessages(
     const persistedHumanMessage = new HumanMessage(
         prompt + (userPrompt.length > 0 ? `\n\n${userPrompt}` : '')
     )
+
+    try {
+        await ctx.parallel('chatluna_character/before-chat', {
+            session,
+            sessionKey: `${session.isDirect ? 'private' : 'group'}:${
+                session.isDirect ? session.userId : session.guildId
+            }`,
+            conversationId: built.conversationId,
+            presetName: currentPreset.name,
+            preset: currentPreset,
+            messages: messages.slice(),
+            focusMessage,
+            triggerReason
+        })
+    } catch (error) {
+        logger.error(error)
+    }
+
     const tempMessages: BaseMessage[] = []
 
     if (config.image) {
@@ -2315,7 +2333,29 @@ export async function apply(ctx: Context, config: Config) {
                 nextReplyReasons
             )
 
-            service.muteAtLeast(session, copyOfConfig.coolDownTime * 1000)
+            service
+                .muteAtLeast(session, copyOfConfig.coolDownTime * 1000)
+                .then(() =>
+                    ctx.parallel('chatluna_character/after-chat', {
+                        session,
+                        sessionKey: key,
+                        conversationId: session.isDirect
+                            ? session.userId
+                            : session.guildId,
+                        presetName: currentPreset.name,
+                        preset: currentPreset,
+                        messages: persistedMessages.slice(),
+                        focusMessage,
+                        triggerReason,
+                        persistedHumanMessage,
+                        lastResponseMessage,
+                        completionMessages: temp.completionMessages.slice(),
+                        status: latestStatus
+                    })
+                )
+                .catch((error) => {
+                    logger.error(error)
+                })
         } catch (e) {
             logger.error(e)
         } finally {
