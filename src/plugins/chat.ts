@@ -2347,7 +2347,7 @@ export async function apply(ctx: Context, config: Config) {
                 session,
                 copyOfConfig.coolDownTime * 1000
             )
-            ctx.parallel('chatluna_character/after-chat', {
+            void ctx.parallel('chatluna_character/after-chat', {
                 session,
                 sessionKey: key,
                 targetId: session.isDirect ? session.userId : session.guildId,
