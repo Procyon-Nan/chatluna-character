@@ -2347,7 +2347,7 @@ export async function apply(ctx: Context, config: Config) {
                 session,
                 copyOfConfig.coolDownTime * 1000
             )
-            void ctx.parallel('chatluna_character/after-chat', {
+            await ctx.parallel('chatluna_character/after-chat', {
                 session,
                 sessionKey: key,
                 targetId: session.isDirect ? session.userId : session.guildId,
@@ -2378,8 +2378,6 @@ export async function apply(ctx: Context, config: Config) {
                     JSON.stringify(temp.completionMessages)
                 ),
                 status: latestStatus
-            }).catch((error) => {
-                logger.error(error)
             })
         } catch (e) {
             logger.error(e)
